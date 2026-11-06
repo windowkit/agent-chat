@@ -108,7 +108,7 @@ npm run build         # tsc -p tsconfig.build.json: src -> dist
 npm run check:package # after a build
 npm run format:check
 npm run screenshots   # docs/img/chat-{light,dark}.png
-npm run examples:demo
+npm run examples:demo # DEMO_AGENT=claude for real Claude Code; see its header
 ```
 
 ## Tests

@@ -272,6 +272,7 @@ card, never a dialog.
 
 ```bash
 npm run examples:demo        # no SDK, no key: a scripted agent
+DEMO_AGENT=claude DEMO_CWD=~/scratch/demo npm run examples:demo   # the same app, over Claude
 npm run examples:claude -- ~/src/my-project
 npm run examples:tools       # the app's tools and renderers
 npm run examples:intercept   # Run buttons, the gate, a replaced shell

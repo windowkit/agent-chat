@@ -3,6 +3,19 @@
 // app's tools, and writes a code block whose Run button calls the app.
 //
 //   npm run examples:demo
+//
+// The same app over real Claude Code — the same tool, the same `chart` fence
+// (its `describe` tells Claude it exists), the same Run button — with the
+// Claude Agent SDK installed beside this package:
+//
+//   npm install --no-save @anthropic-ai/claude-agent-sdk
+//   DEMO_AGENT=claude DEMO_CWD=~/scratch/demo npm run examples:demo
+//
+// `DEMO_CWD` is where Claude works: the process's directory, this repo, if it
+// is not set. It asks before it changes anything there. Authentication is
+// Claude Code's: `ANTHROPIC_API_KEY`, or what it is already configured with.
+// `CLAUDE_PATH` runs the `claude` you have installed rather than the SDK's
+// own copy; SDK 0.3.N ships Claude Code 2.1.N, so keep the two in step.
 
 import { useState, type ReactElement } from 'react';
 import { createRoot } from 'react-x11';
@@ -15,6 +28,26 @@ import {
   type CodeAction,
 } from '../src/index.js';
 import { fakeDriver, type FakeStep } from '../src/testing/index.js';
+
+const CLAUDE = process.env.DEMO_AGENT === 'claude';
+const CWD = expandHome(process.env.DEMO_CWD) ?? process.cwd();
+const CLAUDE_PATH = expandHome(process.env.CLAUDE_PATH);
+
+/** The session's props: the scripted agent, or Claude in `CWD`. */
+const AGENT = CLAUDE
+  ? {
+      agent: 'claude' as const,
+      cwd: CWD,
+      ...(CLAUDE_PATH
+        ? { driverOptions: { pathToClaudeCodeExecutable: CLAUDE_PATH } }
+        : {}),
+    }
+  : { agent: fakeDriver(() => REPLY, { name: 'demo agent' }) };
+
+function expandHome(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+  return path.startsWith('~/') ? `${process.env.HOME}${path.slice(1)}` : path;
+}
 
 const REPLY: FakeStep[] = [
   {
@@ -91,10 +124,14 @@ function App(): ReactElement {
   };
 
   return (
-    <window width={760} height={720} title="Agent chat — demo">
+    <window
+      width={760}
+      height={720}
+      title={CLAUDE ? `Agent chat — Claude in ${CWD}` : 'Agent chat — demo'}
+    >
       <box style={{ flexDirection: 'column', flexGrow: 1 }}>
         <AgentChat
-          agent={fakeDriver(() => REPLY, { name: 'demo agent' })}
+          {...AGENT}
           tools={{ openTicket }}
           codeActions={[copyCode, run]}
           fences={{
@@ -103,10 +140,16 @@ function App(): ReactElement {
               render: (fence) => <Bars json={fence.text} />,
             },
           }}
-          placeholder="Ask anything — the demo agent always does the same thing"
+          placeholder={
+            CLAUDE
+              ? 'Ask Claude — try “open a ticket for the flaky test”'
+              : 'Ask anything — the demo agent always does the same thing'
+          }
           empty={
             <text style={{ color: '#7f8c8d' }}>
-              Send any message to start the demo.
+              {CLAUDE
+                ? `Claude, working in ${CWD}. It asks before it changes anything.`
+                : 'Send any message to start the demo.'}
             </text>
           }
         />

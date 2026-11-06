@@ -14,6 +14,7 @@ import {
   type ClaudeSdk,
   type SdkMessage,
 } from '../src/drivers/claude/index.js';
+import { loadClaudeSdk } from '../src/drivers/claude/sdk.js';
 import { textOf, tool, until } from './helpers.js';
 
 interface FakeTool {
@@ -159,7 +160,7 @@ test('the options say what the session asked for', async () => {
   assert.deepEqual(o.settingSources, []);
   assert.equal(o.permissionMode, 'acceptEdits');
   assert.deepEqual(o.disallowedTools, ['WebFetch', 'WebSearch']);
-  assert.deepEqual(o.allowedTools, ['mcp__app__openTicket']);
+  assert.equal(o.allowedTools, undefined, 'the gate allows app tools');
   assert.equal(o.includePartialMessages, true);
   assert.equal(o.maxTurns, 3, 'driverOptions are passed through, last');
   assert.ok((o.mcpServers as Record<string, unknown>).app);
@@ -481,8 +482,11 @@ test('a message sent mid-turn steers rather than queues', async () => {
 });
 
 test('a missing SDK makes the session unavailable, saying how to install it', async () => {
-  // no `sdk` option: the real import, which is not installed here
-  const session = createAgentSession({ agent: claudeDriver() });
+  // never the real import: with the SDK installed (a devDependency here) it
+  // would start Claude Code
+  const session = createAgentSession({
+    agent: claudeDriver({ module: '@anthropic-ai/claude-agent-sdk-not-here' }),
+  });
   session.send('hi');
   await until(
     () =>
@@ -492,6 +496,20 @@ test('a missing SDK makes the session unavailable, saying how to install it', as
   assert.equal(session.snapshot.status, 'unavailable');
   assert.match(
     session.snapshot.error!,
-    /npm install @anthropic-ai\/claude-agent-sdk/,
+    /not installed.*npm install @anthropic-ai\/claude-agent-sdk-not-here/,
   );
+});
+
+test('an SDK that fails to load says why, not that it is missing', async () => {
+  const broken = `data:text/javascript,${encodeURIComponent(
+    "import 'some-package-the-sdk-needs';",
+  )}`;
+  await assert.rejects(loadClaudeSdk(broken), (err: Error) => {
+    assert.equal(err.name, 'AgentUnavailableError');
+    assert.match(
+      err.message,
+      /installed but did not load: .*some-package-the-sdk-needs/,
+    );
+    return true;
+  });
 });

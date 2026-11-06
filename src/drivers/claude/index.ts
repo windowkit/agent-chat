@@ -61,6 +61,9 @@ export interface ClaudeDriverOptions {
   /** The SDK module. Default: `@anthropic-ai/claude-agent-sdk`, imported
    *  when the session starts. A test hands a fake. */
   sdk?: ClaudeSdk;
+  /** Where to import the SDK from, when `sdk` is not given. Default
+   *  `@anthropic-ai/claude-agent-sdk`. */
+  module?: string;
 }
 
 export const CLAUDE_CAPABILITIES: Capabilities = Object.freeze({
@@ -97,7 +100,7 @@ export function claudeDriver(options: ClaudeDriverOptions = {}): AgentDriver {
   return {
     name: 'claude',
     async start(host) {
-      const sdk = options.sdk ?? (await loadClaudeSdk());
+      const sdk = options.sdk ?? (await loadClaudeSdk(options.module));
       return startClaude(sdk, host);
     },
   };
@@ -235,9 +238,11 @@ async function startClaude(
   };
 
   // --- the query ------------------------------------------------------------
-  const appToolNames = [...config.tools]
-    .filter(([, def]) => !def.ask)
-    .map(([name]) => `${APP_PREFIX}${name}`);
+  // The app's tools are not put in `allowedTools`: the hook's gate allows
+  // them (the policy runs an app tool unless its `ask` says otherwise), so
+  // every call takes one path, `onToolCall` included. A bare `allowedTools`
+  // entry would also keep `canUseTool` from an `ask: true` tool, and the SDK
+  // warns about exactly that at every start.
   const options: Record<string, unknown> = {
     cwd: config.cwd,
     systemPrompt: config.systemPrompt
@@ -262,7 +267,6 @@ async function startClaude(
     options.additionalDirectories = [...config.folders];
   if (disallowed.size) options.disallowedTools = [...disallowed];
   if (Object.keys(aliases).length) options.toolAliases = aliases;
-  if (appToolNames.length) options.allowedTools = appToolNames;
   if (sdkTools.length) {
     options.mcpServers = {
       [APP_SERVER]: sdk.createSdkMcpServer({

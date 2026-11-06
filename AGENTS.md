@@ -71,6 +71,14 @@ emitted `.d.ts` names a Node type or ProseMirror's.
 - **A harness that cannot run is `AgentUnavailableError`**, an ordinary
   state of a healthy machine: `status: 'unavailable'` and the `fallback`,
   never a crash.
+- **The Claude Agent SDK is an optional peer and a devDependency.** The
+  peer is for apps (and keeps the import resolvable under pnpm); the
+  devDependency is so this repository's examples run after `npm install`.
+  npm installs no optional peer of the project itself, even named with
+  `--no-save`, which printed "up to date" and left the SDK out. No test
+  imports it: the driver's tests hand it a fake, and the missing-SDK test
+  names a module that does not exist, since the real import would start
+  Claude Code.
 - **An optional dependency's types are ours.** The Claude Agent SDK is an
   optional peer; `src/drivers/claude/sdk.ts` writes out the slice the driver
   uses and loads the package with a specifier the compiler cannot follow. An

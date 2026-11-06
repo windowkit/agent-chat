@@ -112,10 +112,10 @@ real session: streamed text, approvals, the app's tools, questions. The demo
 and every test run on it, with no SDK, no key and no network.
 
 The same demo over real Claude Code — the same tool, fence renderer and Run
-button, with Claude deciding what to do:
+button, with Claude deciding what to do. The SDK is a devDependency of this
+repository, so `npm install` has brought it:
 
 ```bash
-npm install --no-save @anthropic-ai/claude-agent-sdk
 DEMO_AGENT=claude DEMO_CWD=~/scratch/demo npm run examples:demo
 ```
 

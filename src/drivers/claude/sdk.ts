@@ -62,23 +62,33 @@ export interface ClaudeSdk {
   }): unknown;
 }
 
-const SDK = '@anthropic-ai/claude-agent-sdk';
+export const CLAUDE_SDK = '@anthropic-ai/claude-agent-sdk';
 
-/** The SDK, or `AgentUnavailableError` saying how to get it. */
-export async function loadClaudeSdk(): Promise<ClaudeSdk> {
+/**
+ * The SDK, or `AgentUnavailableError` saying what is wrong: not installed —
+ * with the line that installs it — or installed and failing to load, with
+ * the reason. A missing package the SDK itself needs is the second kind, not
+ * the first: telling someone who has just installed the SDK to install it
+ * sends them round in a circle.
+ */
+export async function loadClaudeSdk(
+  specifier: string = CLAUDE_SDK,
+): Promise<ClaudeSdk> {
   try {
     // The specifier is a variable so neither the compiler nor a bundler
     // follows it: the package is an optional peer.
-    const name: string = SDK;
-    return (await import(name)) as ClaudeSdk;
+    return (await import(specifier)) as ClaudeSdk;
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const code = (err as { code?: unknown } | null)?.code;
+    const missing =
+      (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') &&
+      message.includes(`'${specifier}'`);
     throw new AgentUnavailableError(
-      `The Claude Agent SDK is not installed. Install it beside this package: ` +
-        `npm install ${SDK}` +
-        (err instanceof Error &&
-        !/Cannot find (package|module)/.test(err.message)
-          ? ` (${err.message})`
-          : ''),
+      missing
+        ? `The Claude Agent SDK is not installed. Install it beside this ` +
+            `package: npm install ${specifier}`
+        : `The Claude Agent SDK is installed but did not load: ${message}`,
     );
   }
 }

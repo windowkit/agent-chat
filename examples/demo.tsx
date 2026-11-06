@@ -5,10 +5,9 @@
 //   npm run examples:demo
 //
 // The same app over real Claude Code — the same tool, the same `chart` fence
-// (its `describe` tells Claude it exists), the same Run button — with the
-// Claude Agent SDK installed beside this package:
+// (its `describe` tells Claude it exists), the same Run button. The Claude
+// Agent SDK is a devDependency here, so `npm install` has brought it:
 //
-//   npm install --no-save @anthropic-ai/claude-agent-sdk
 //   DEMO_AGENT=claude DEMO_CWD=~/scratch/demo npm run examples:demo
 //
 // `DEMO_CWD` is where Claude works: the process's directory, this repo, if it

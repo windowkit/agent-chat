@@ -44,21 +44,22 @@ renders: give the chat a new `key` to start a new session with new ones.
 
 ## The view's props
 
-| Prop          | Type                                               | Notes                                                                                                        |
-| ------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `session`     | `AgentSession`                                     | A session from `useAgent`. With it, none of the session's props above are allowed: they are the session's.   |
-| `fences`      | `{ [lang]: render \| { render, describe } }`       | Fenced blocks the app draws, by language. See [Rendering](#rendering).                                       |
-| `components`  | `{ [Name]: Component \| { component, describe } }` | Tags a reply may write on their own line. A tag is a component iff its name is a key; nothing is evaluated.  |
-| `renderTool`  | `{ [label]: (info) => ReactNode }`                 | Tool calls the app draws, by the tool's label; `'*'` for every other. A tool's own `render` comes first.     |
-| `codeActions` | `CodeAction[]`                                     | Buttons on every fenced code block. Default `[copyCode]`. Nothing runs a block unless an action here does.   |
-| `onLink`      | `(href) => void`                                   | A link in a reply was pressed. Nothing navigates by itself.                                                  |
-| `placeholder` | `string`                                           | The composer's. Default "Ask the agent…".                                                                    |
-| `header`      | `boolean \| (session) => ReactNode`                | The session's line: agent, model and mode pickers, cost, Copy chat. Default `true`.                          |
-| `empty`       | `ReactNode`                                        | Shown while the transcript is empty.                                                                         |
-| `fallback`    | `ReactNode \| (snapshot) => ReactNode`             | Shown instead of the chat when the harness cannot run here. Default: a line saying why, above an empty chat. |
-| `fontSize`    | `number`                                           | Base text size. Default: the theme's.                                                                        |
-| `autoFocus`   | `boolean`                                          | Focus the composer on mount. Default `true`.                                                                 |
-| `style`       | `StyleProp`                                        | The root box. It fills what it is put in by default (`flexGrow: 1`).                                         |
+| Prop          | Type                                                 | Notes                                                                                                        |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `session`     | `AgentSession`                                       | A session from `useAgent`. With it, none of the session's props above are allowed: they are the session's.   |
+| `fences`      | `{ [lang]: render \| { render, describe } }`         | Fenced blocks the app draws, by language. See [Rendering](#rendering).                                       |
+| `components`  | `{ [Name]: Component \| { component, describe } }`   | Tags a reply may write on their own line. A tag is a component iff its name is a key; nothing is evaluated.  |
+| `renderTool`  | `{ [label]: (info) => ReactNode }`                   | Tool calls the app draws, by the tool's label; `'*'` for every other. A tool's own `render` comes first.     |
+| `codeActions` | `CodeAction[]`                                       | Buttons on every fenced code block. Default `[copyCode]`. Nothing runs a block unless an action here does.   |
+| `onLink`      | `(href) => void`                                     | A link in a reply was pressed. Nothing navigates by itself.                                                  |
+| `placeholder` | `string`                                             | The composer's. Default "Ask the agent… @ for a file, / for a command".                                      |
+| `composer`    | `{ markup?, files?, commands?, pasteAsAttachment? }` | The message box. See [The composer](#the-composer).                                                          |
+| `header`      | `boolean \| (session) => ReactNode`                  | The session's line: agent, model and mode pickers, cost, Copy chat. Default `true`.                          |
+| `empty`       | `ReactNode`                                          | Shown while the transcript is empty.                                                                         |
+| `fallback`    | `ReactNode \| (snapshot) => ReactNode`               | Shown instead of the chat when the harness cannot run here. Default: a line saying why, above an empty chat. |
+| `fontSize`    | `number`                                             | Base text size. Default: the theme's.                                                                        |
+| `autoFocus`   | `boolean`                                            | Focus the composer on mount. Default `true`.                                                                 |
+| `style`       | `StyleProp`                                          | The root box. It fills what it is put in by default (`flexGrow: 1`).                                         |
 
 ## The ladder
 
@@ -97,6 +98,42 @@ One chat, growing a prop at a time.
 const agent = useAgent({ agent: 'claude', cwd: project.root, tools: { openTicket } });
 <AgentChat session={agent} codeActions={[copyCode, runAction]} />;
 ```
+
+## The composer
+
+The message box is [`<RichTextEditor>`](https://github.com/sidorares/react-x11-components/blob/master/docs/components/rich-text-editor.md#composer)
+as a hybrid composer. **What is sent is exactly what was typed** — `2 * 3`
+reaches the agent as `2 * 3`, `src/**/*.ts` as `src/**/*.ts` — and markdown
+is drawn over it as it is typed: a fence in the code face, coloured; inline
+code on a tint; emphasis, headings, quotes and lists with their markers kept
+and dimmed. **Once sent, the message is drawn as full markdown** in the
+transcript, with the same fences, components and code actions as a reply.
+
+| Key                   | Does                                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Enter                 | Sends. Inside an open fence, or on the line that opens one, it is a new line; on the closing line it sends. |
+| Shift+Enter           | A new line.                                                                                                 |
+| Tab, Shift+Tab        | In a fence, indent and dedent.                                                                              |
+| `@`                   | Lists the files under the agent's `cwd`; a choice is written `@path`, which Claude Code reads.              |
+| `/` at a line's start | Lists the agent's commands.                                                                                 |
+| Up, on the first line | Brings back what was sent, newest first; Down goes forward to the draft.                                    |
+| Escape                | Stops a running turn.                                                                                       |
+
+A paste past ten lines or 2,000 characters becomes an attachment: its token,
+`[Pasted text #1 +312 lines]`, stands in the text, and the paste is sent
+beside it. A pasted image (a screenshot) is an image attachment.
+
+`composer` turns parts of it off:
+
+```tsx
+<AgentChat
+  agent="claude"
+  composer={{ markup: 'code', files: false, pasteAsAttachment: false }}
+/>
+```
+
+`markup` is `'markdown'` (default), `'code'` (fences and inline code only) or
+`'none'`; nothing it draws changes what is sent.
 
 ## Tools
 

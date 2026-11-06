@@ -5,7 +5,7 @@
 //   npm run screenshots        # writes docs/img/chat-light.png and chat-dark.png
 
 import { writeFileSync, existsSync } from 'node:fs';
-import { renderX11, act } from 'react-x11/test';
+import { renderX11, act, screen, userEvent } from 'react-x11/test';
 import { PNG } from 'pngjs';
 import { z } from 'zod';
 import {
@@ -93,11 +93,18 @@ async function shot(scheme: 'light' | 'dark', out: string): Promise<void> {
     } as never,
   );
   await act(() =>
-    session.send('Why does the composer test fail? Please fix it.'),
+    session.send(
+      'Why does the **composer** test fail? It lives in `src/view/Composer.tsx`.',
+    ),
   );
   for (let i = 0; i < 400 && session.snapshot.status !== 'waiting'; i++)
     await new Promise((res) => setTimeout(res, 5));
   await act();
+  // a draft in the composer, to show markdown drawn as it is typed
+  await userEvent.type(
+    screen.getByTestName('agent-chat-composer'),
+    'Also: why does **Stop** lose the draft in `Composer.tsx`?',
+  );
   await new Promise((res) => setTimeout(res, 800));
   await act();
   const { width: w, height: h } = (r.windowNode as any).abs;

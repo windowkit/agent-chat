@@ -63,11 +63,18 @@ function UserMessage({
         }}
       >
         {message.parts.map((p) =>
+          // what was typed as markdown is drawn as markdown once it is sent,
+          // with the same fences, components and code actions as a reply
           p.type === 'text' ? (
-            <text key={p.id} style={{ color: look.text }}>
-              {p.text}
-            </text>
-          ) : p.type === 'file' ? (
+            <TextBlock
+              key={p.id}
+              text={p.text}
+              streaming={false}
+              message={message}
+            />
+          ) : p.type === 'file' && !textOf(message).includes(`[${p.label}]`) ? (
+            // an attachment the composer made is already in the text as its
+            // token; one sent some other way gets a line of its own
             <text key={p.id} style={{ color: look.muted, fontSize: 11 }}>
               {`[${p.label}]`}
             </text>
@@ -251,4 +258,8 @@ function CopyButton({ message }: { message: AgentMessage }): ReactElement {
       }}
     />
   );
+}
+
+function textOf(message: AgentMessage): string {
+  return message.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
 }

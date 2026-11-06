@@ -96,11 +96,18 @@ they have to be: `registerElement` throws when a second copy of
 `@react-x11/components` registers `<richtext>` again, and a second
 react-x11 would hold the registrations in the wrong copy.
 
-The `@react-x11/components` range is `^0.37.0 || ^0.38.0`. The hybrid
-composer props (`markup`, `composerSchema`, `pasteAsAttachment`, `recall`,
-`composerParts`) arrive in 0.38.0 and are **read at run time** in
-`src/view/Composer.tsx`, so 0.37 gets a plain text composer. When the floor
-moves to 0.38: type the props, delete the detection, and narrow the range.
+The `@react-x11/components` floor is `^0.38.0`, the release with the hybrid
+composer (`markup`, `composerSchema`, `pasteAsAttachment`, `recall`,
+`composerParts`, sidorares/react-x11-components#1344), which
+`src/view/Composer.tsx` stands on. Keep the peer range and the devDependency
+the same: a devDependency above the peer floor means the suite passes on a
+release apps are not required to have.
+
+**The composer's value is what was typed, and a sent message is drawn as
+markdown.** `markup="markdown"` draws emphasis, fences and the rest over the
+literal text while it is typed; once sent, the same text goes through
+`TextBlock`, as a reply does. Never send the editor's markdown codec's
+output: it escapes (`2 * 3` would reach the agent as `2 \* 3`).
 
 `<Markdown codeActions>` is the planned home for code block buttons. Until it
 ships, `src/view/fences.ts` cuts a reply at its top-level fences and

@@ -17,7 +17,7 @@ import {
   type SessionSnapshot,
 } from '../core/session.js';
 import type { ToolCall } from '../core/types.js';
-import { Composer } from './Composer.js';
+import { Composer, type ComposerOptions } from './Composer.js';
 import {
   ChatContext,
   componentMap,
@@ -52,6 +52,9 @@ export interface AgentChatViewProps {
   /** A link in a reply was pressed. Nothing navigates by itself. */
   onLink?: (href: string) => void;
   placeholder?: string;
+  /** How the message box behaves: what it draws as markdown while typing,
+   *  the `@` file list, the `/` command list, pastes as attachments. */
+  composer?: ComposerOptions;
   /** `true` for the session's line (agent, model, mode, cost, Copy), or a
    *  function of the session for the app's own. Default `true`. */
   header?: boolean | ((session: AgentSession) => ReactNode);
@@ -193,6 +196,7 @@ function ChatView({
           {...(view.autoFocus !== undefined
             ? { autoFocus: view.autoFocus }
             : {})}
+          {...(view.composer ? { options: view.composer } : {})}
         />
       </box>
     </ChatContext.Provider>

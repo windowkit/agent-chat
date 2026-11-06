@@ -11,6 +11,7 @@ export {
   type AgentChatViewProps,
 } from './view/AgentChat.js';
 export { useAgent, useSessionSnapshot } from './view/use-agent.js';
+export type { ComposerOptions } from './view/Composer.js';
 export {
   copyCode,
   defineTool,

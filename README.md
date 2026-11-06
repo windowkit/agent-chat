@@ -11,7 +11,9 @@ import { AgentChat } from '@windowkit/agent-chat';
 
 That is a working chat with Claude Code in the app's working directory: replies
 stream in as markdown, tool calls show as cards with their output, anything
-that changes something asks first, Enter sends and Escape stops. Everything
+that changes something asks first, Enter sends and Escape stops. The message
+box formats markdown as it is typed and sends exactly what was typed, with
+`@` for a file, `/` for a command and Up for an earlier prompt. Everything
 else is an opt-in on the same element: the app's context, its own functions
 as tools, its own renderers for what the agent writes, and its own handlers
 for anything the agent or the user does.

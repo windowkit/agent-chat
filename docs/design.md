@@ -1109,9 +1109,10 @@ Where it departs from the design:
   a reply is cut at its top-level fences here (`src/view/fences.ts`) and each
   fence is drawn as a code block with a header. A fence indented under a list
   item stays in its list, without actions.
-- **The composer reads the 0.38 props at run time.** `markup`,
-  `composerSchema`, `pasteAsAttachment`, `recall` and `composerParts` landed
-  after `@react-x11/components` 0.37.0. On 0.37 the composer is a plain text
-  editor; the detection goes when the floor moves.
+- **The composer is 0.38's, with markdown markup by default.** It draws
+  emphasis, headings, quotes and lists as well as fences and inline code
+  (`markup="markdown"`, where the design proposed `'code'`), lists files at
+  `@` and the agent's commands at `/`, and a sent message is drawn as full
+  markdown in the transcript.
 - **Edit, retry and branches are M2**, as planned: `capabilities.fork` is
   false on every driver so far, so no Edit button is drawn.

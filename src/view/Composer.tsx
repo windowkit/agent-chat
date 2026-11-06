@@ -1,64 +1,68 @@
-// The message box: `<RichTextEditor>` as a hybrid composer — the value is
-// exactly what was typed, Enter sends, Shift+Enter breaks the line, Escape
-// stops a running turn.
+// The message box: `<RichTextEditor>` as the hybrid composer
+// (`@react-x11/components` 0.38). The value is exactly what was typed —
+// `2 * 3` is sent as `2 * 3` — and markdown is drawn over it as it is typed:
+// fences in the code face and coloured, inline code on a tint, emphasis,
+// headings, quotes and lists with their markers kept and dimmed.
 //
-// The composer props (`markup`, `composerSchema`, `pasteAsAttachment`,
-// `recall`, `composerParts`) arrive in `@react-x11/components` 0.38.0. They
-// are read at run time, so on 0.37 the composer is a plain text editor and
-// on 0.38 it formats fences and inline code as they are typed, recalls
-// earlier prompts with Up, and turns a long paste into an attachment. When
-// the floor moves to 0.38, the detection goes and the props are typed.
+// - Enter sends; Shift+Enter breaks the line; Enter inside an open fence is
+//   a new line, and on its closing line it sends.
+// - `@` lists the files under the agent's working directory, and inserts one
+//   as a mention, written `@path` — what Claude Code reads a file by.
+// - `/` at the start of a line lists the agent's commands.
+// - A paste past ten lines or 2,000 characters is an attachment, written as
+//   its token (`[Pasted text #1 +312 lines]`) and sent beside the text; a
+//   pasted image is one too.
+// - Up on the first line brings back what was sent, newest first.
+// - Escape stops a running turn.
 
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import { Button, type KeyboardEvent } from 'react-x11';
 import { XK_ESCAPE } from 'react-x11/keysyms';
-import * as rte from '@react-x11/components/rich-text-editor';
-import type {
-  RichTextEditorEvent,
-  RichTextEditorHandle,
+import {
+  RichTextEditor,
+  composerParts,
+  composerSchema,
+  type ComposerAtom,
+  type RichTextEditorHandle,
+  type Suggester,
 } from '@react-x11/components/rich-text-editor';
 
+import type { AgentSession } from '../core/session.js';
 import type { Attachment } from '../core/types.js';
 import { useChat } from './context.js';
+import { listFiles, matchFiles } from './files.js';
 import { useLook } from './look.js';
 import { useSessionSnapshot } from './use-agent.js';
 
-/** `composerParts` as 0.38 answers it, written out until the floor moves. */
-interface ComposerAtom {
-  type: 'mention' | 'attachment';
-  kind: string;
-  id: string;
-  label: string;
-  data: unknown;
-  token: string;
-  at: number;
+/** How the composer behaves: `<AgentChat composer={…}>`. */
+export interface ComposerOptions {
+  /** What is drawn over the text as it is typed. Default `'markdown'`:
+   *  everything below plus emphasis, headings, quotes and lists. `'code'`
+   *  draws fences and inline code alone. Nothing changes what is sent. */
+  markup?: 'none' | 'code' | 'markdown';
+  /** `@` lists the files under the working directory. Default true. */
+  files?: boolean;
+  /** `/` at the start of a line lists the agent's commands. Default true. */
+  commands?: boolean;
+  /** A long paste, and a pasted image, become attachments. Default true. */
+  pasteAsAttachment?: boolean;
 }
-type ComposerParts = (doc: unknown) => {
-  text: string;
-  mentions: readonly ComposerAtom[];
-  attachments: readonly ComposerAtom[];
-};
-
-const extras = rte as unknown as {
-  composerSchema?: unknown;
-  composerParts?: ComposerParts;
-};
-const HYBRID = !!(extras.composerSchema && extras.composerParts);
 
 export interface ComposerProps {
   placeholder?: string;
   autoFocus?: boolean;
+  options?: ComposerOptions;
 }
 
 export function Composer({
   placeholder,
   autoFocus,
+  options = {},
 }: ComposerProps): ReactElement {
   const { session } = useChat();
   const snap = useSessionSnapshot(session);
   const look = useLook();
   const editor = useRef<RichTextEditorHandle | null>(null);
-  const [sent, setSent] = useState<readonly string[]>([]);
 
   const busy =
     snap.status === 'running' ||
@@ -74,19 +78,26 @@ export function Composer({
     if (text) editor.current?.setValue(text);
   }, [snap.restored, session]);
 
+  // Up brings back what the transcript says was sent, so a remount keeps it
+  const recall = useMemo(() => sentTexts(snap.messages), [snap.messages]);
+
+  const cwd = snap.info.cwd;
+  const files = options.files !== false;
+  const commands = options.commands !== false;
+  const suggestions = useMemo(
+    () => [
+      ...(files && cwd ? [fileSuggester(cwd)] : []),
+      ...(commands ? [commandSuggester(session)] : []),
+    ],
+    [files, commands, cwd, session],
+  );
+
   const submit = () => {
     const handle = editor.current;
     if (!handle) return;
-    const value = handle.getValue('text');
-    if (!value.trim()) return;
-    const attachments: Attachment[] = [];
-    if (HYBRID) {
-      const parts = extras.composerParts!(handle.state.doc);
-      for (const atom of parts.attachments)
-        attachments.push(attachmentOf(atom));
-    }
-    session.send({ text: value, attachments });
-    setSent((all) => [...all, value]);
+    const { text, attachments } = composerParts(handle.state.doc);
+    if (!text.trim() && !attachments.length) return;
+    session.send({ text, attachments: attachments.map(attachmentOf) });
     handle.setValue('');
   };
 
@@ -96,15 +107,6 @@ export function Composer({
       void session.stop();
     }
   };
-
-  const hybrid = HYBRID
-    ? {
-        markup: 'code',
-        schema: extras.composerSchema,
-        pasteAsAttachment: true,
-        recall: sent,
-      }
-    : {};
 
   const canPause = snap.capabilities.gate === 'every-call';
   return (
@@ -118,13 +120,20 @@ export function Composer({
         borderTopColor: look.border,
       }}
     >
-      <rte.RichTextEditor
+      <RichTextEditor
         ref={editor}
         format="text"
+        schema={composerSchema}
+        markup={options.markup ?? 'markdown'}
+        pasteAsAttachment={options.pasteAsAttachment ?? true}
+        recall={recall}
+        suggestions={suggestions}
         submitOnEnter
-        onSubmit={(_ev: RichTextEditorEvent) => submit()}
+        onSubmit={submit}
         onKeyDown={onKeyDown}
-        placeholder={placeholder ?? 'Ask the agent…'}
+        placeholder={
+          placeholder ?? 'Ask the agent…  @ for a file, / for a command'
+        }
         autoFocus={autoFocus ?? true}
         disabled={disabled}
         aria-label="Message"
@@ -137,7 +146,6 @@ export function Composer({
           borderColor: look.border,
           borderRadius: 8,
         }}
-        {...(hybrid as object)}
       />
       <box style={{ flexDirection: 'row', gap: 6 }}>
         {busy && canPause ? (
@@ -155,6 +163,51 @@ export function Composer({
       </box>
     </box>
   );
+}
+
+/** What was sent, oldest first: the composer's `recall`. */
+export function sentTexts(
+  messages: AgentSession['snapshot']['messages'],
+): string[] {
+  const out: string[] = [];
+  for (const m of messages) {
+    if (m.role !== 'user' || m.queued) continue;
+    const text = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
+    if (text && out[out.length - 1] !== text) out.push(text);
+  }
+  return out;
+}
+
+function fileSuggester(cwd: string): Suggester {
+  return {
+    char: '@',
+    items: async ({ query, state }) =>
+      matchFiles(await listFiles(cwd), query).map((file) => ({
+        label: file,
+        insert: state.schema.nodes.mention!.create({
+          kind: 'file',
+          id: file,
+          label: file,
+        }),
+      })),
+  };
+}
+
+function commandSuggester(session: AgentSession): Suggester {
+  return {
+    char: '/',
+    startOfLine: true,
+    // read as asked: the harness names its commands once it is up
+    items: ({ query }) =>
+      session.snapshot.info.commands
+        .filter((c) => c.name.toLowerCase().startsWith(query.toLowerCase()))
+        .slice(0, 20)
+        .map((c) => ({
+          label: `/${c.name}`,
+          ...(c.description ? { detail: c.description } : {}),
+          insert: `/${c.name} `,
+        })),
+  };
 }
 
 function attachmentOf(atom: ComposerAtom): Attachment {

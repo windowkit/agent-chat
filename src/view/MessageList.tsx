@@ -176,8 +176,16 @@ function Reasoning({
   text: string;
   streaming: boolean;
   look: ChatLook;
-}): ReactElement {
+}): ReactElement | null {
   const [open, setOpen] = useState(false);
+  // A harness may send a thought with its text left out (Claude's
+  // `display: 'omitted'`): while it streams it is still news that the agent
+  // is thinking; once it is over there is nothing to open, so nothing is drawn.
+  if (!text.trim()) {
+    return streaming ? (
+      <text style={{ color: look.muted, fontSize: 12 }}>Thinking…</text>
+    ) : null;
+  }
   return (
     <box style={{ flexDirection: 'column', gap: 4 }}>
       <box

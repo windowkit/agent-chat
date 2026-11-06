@@ -264,6 +264,12 @@ async function startClaude(
       config.settings === 'isolated' ? [] : ['user', 'project', 'local'],
     permissionMode: config.mode ?? MODES[config.permissions],
     includePartialMessages: true,
+    // Thinking as text to show. On Opus 4.7 and later the SDK's default is
+    // `display: 'omitted'`: a thinking block arrives with no text, only its
+    // signature, and the chat had an empty "Thought" to open. `adaptive` is
+    // already the default for the models that think; `driverOptions.thinking`
+    // overrides it, for an older model or for none.
+    thinking: { type: 'adaptive', display: 'summarized' },
     hooks: { PreToolUse: [{ hooks: [preToolUse] }] },
     canUseTool,
     env: {

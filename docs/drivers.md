@@ -25,19 +25,20 @@ their environment variables.
 
 What the driver does with the session's options:
 
-| Session                   | Agent SDK                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| `instructions`            | `systemPrompt: { type: 'preset', preset: 'claude_code', append }`                          |
-| `systemPrompt`            | `systemPrompt`, a string, with `instructions` after it                                     |
-| `cwd`, `folders`          | `cwd`, `additionalDirectories`                                                             |
-| `settings`                | `settingSources`: all three for `'cli'`, none for `'isolated'`                             |
-| `coreTools: { x: false }` | `disallowedTools`                                                                          |
-| `coreTools: { x: tool }`  | `disallowedTools`, and `toolAliases` from each built-in to the tool                        |
-| `tools`                   | one in-process `createSdkMcpServer`, named `app`; the gate allows them, not `allowedTools` |
-| `permissions`             | `permissionMode`, always passed: `default`, `acceptEdits`, `default`, `auto`               |
-| the gate                  | a `PreToolUse` hook, and `canUseTool` for the approval row                                 |
-| `model`, `resume`         | `model`, `resume`                                                                          |
-| `driverOptions`           | merged over all of it                                                                      |
+| Session                   | Agent SDK                                                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `instructions`            | `systemPrompt: { type: 'preset', preset: 'claude_code', append }`                                                                 |
+| `systemPrompt`            | `systemPrompt`, a string, with `instructions` after it                                                                            |
+| `cwd`, `folders`          | `cwd`, `additionalDirectories`                                                                                                    |
+| `settings`                | `settingSources`: all three for `'cli'`, none for `'isolated'`                                                                    |
+| `coreTools: { x: false }` | `disallowedTools`                                                                                                                 |
+| `coreTools: { x: tool }`  | `disallowedTools`, and `toolAliases` from each built-in to the tool                                                               |
+| `tools`                   | one in-process `createSdkMcpServer`, named `app`; the gate allows them, not `allowedTools`                                        |
+| `permissions`             | `permissionMode`, always passed: `default`, `acceptEdits`, `default`, `auto`                                                      |
+| the gate                  | a `PreToolUse` hook, and `canUseTool` for the approval row                                                                        |
+| thinking                  | `thinking: { type: 'adaptive', display: 'summarized' }`, so a thought has text to show (the SDK omits it by default on Opus 4.7+) |
+| `model`, `resume`         | `model`, `resume`                                                                                                                 |
+| `driverOptions`           | merged over all of it                                                                                                             |
 
 Before it starts Claude Code, the driver checks that `cwd` and every one of
 `folders` is a directory, unless `driverOptions.spawnClaudeCodeProcess` runs

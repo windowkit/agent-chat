@@ -273,3 +273,41 @@ test('@ lists the files under the working directory and writes the choice as @pa
   assert.equal(agent.sent[0]!.text.trim(), 'look at @src/Composer.tsx');
   await session.close();
 });
+
+test('a thought with no text is not drawn, and one with text can be opened', async () => {
+  const session = createAgentSession({
+    agent: fakeDriver(
+      scripted(
+        [
+          { type: 'say', text: '', reasoning: true },
+          { type: 'say', text: 'first' },
+        ],
+        [
+          { type: 'say', text: 'weighing the options', reasoning: true },
+          { type: 'say', text: 'second' },
+        ],
+      ),
+    ),
+  });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  await act(() => session.send('one'));
+  await until(() => session.snapshot.status === 'idle');
+  await act();
+  assert.equal(
+    screen.queryByText('Thought', { exact: true }),
+    null,
+    'an empty thought is not drawn',
+  );
+
+  await act(() => session.send('two'));
+  await until(() => session.snapshot.status === 'idle');
+  const thought = await screen.findByText('Thought', { exact: true });
+  assert.equal(
+    screen.queryByText('weighing the options'),
+    null,
+    'closed until opened',
+  );
+  await userEvent.click(thought);
+  assert.ok(await screen.findByText('weighing the options'));
+  await session.close();
+});

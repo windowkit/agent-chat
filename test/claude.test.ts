@@ -171,6 +171,11 @@ test('the options say what the session asked for', async (t) => {
   assert.deepEqual(o.disallowedTools, ['WebFetch', 'WebSearch']);
   assert.equal(o.allowedTools, undefined, 'the gate allows app tools');
   assert.equal(o.includePartialMessages, true);
+  assert.deepEqual(
+    o.thinking,
+    { type: 'adaptive', display: 'summarized' },
+    'thinking as text to show, which the SDK omits by default on Opus 4.7+',
+  );
   assert.equal(o.maxTurns, 3, 'driverOptions are passed through, last');
   assert.ok((o.mcpServers as Record<string, unknown>).app);
   assert.equal(
@@ -537,4 +542,15 @@ test('a working directory that does not exist is said as such, before Claude Cod
     /does not exist: .*agent-chat-no-such-dir\/demo/,
   );
   assert.equal(state.options, null, 'query() was never called');
+});
+
+test('driverOptions.thinking replaces the default', async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({
+    agent: claudeDriver({ sdk }),
+    driverOptions: { thinking: { type: 'disabled' } },
+  });
+  await session.start();
+  assert.deepEqual(state.options!.thinking, { type: 'disabled' });
+  await session.close();
 });

@@ -121,8 +121,8 @@ repository, so `npm install` has brought it:
 DEMO_AGENT=claude DEMO_CWD=~/scratch/demo npm run examples:demo
 ```
 
-`DEMO_CWD` is where Claude works (default: the current directory), and it asks
-before changing anything there. It authenticates as Claude Code does:
+`DEMO_CWD` is where Claude works, made if it is missing (default: the current
+directory), and it asks before changing anything there. It authenticates as Claude Code does:
 `ANTHROPIC_API_KEY`, or the configuration it already has. `CLAUDE_PATH` runs
 your installed `claude` instead of the SDK's copy; SDK 0.3.N ships Claude Code
 2.1.N, so keep the two in step.

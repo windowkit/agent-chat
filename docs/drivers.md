@@ -39,6 +39,13 @@ What the driver does with the session's options:
 | `model`, `resume`         | `model`, `resume`                                                                          |
 | `driverOptions`           | merged over all of it                                                                      |
 
+Before it starts Claude Code, the driver checks that `cwd` and every one of
+`folders` is a directory, unless `driverOptions.spawnClaudeCodeProcess` runs
+it somewhere else. Launched in one that does not exist, Claude Code fails with
+`ENOENT` naming the executable, and the SDK reports a binary that "exists but
+failed to launch", which reads as a broken install; the session says which
+directory is missing instead.
+
 Three things about it that are decisions:
 
 - **The gate is split in two, because hooks have a timeout.** The

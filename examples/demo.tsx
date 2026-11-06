@@ -10,12 +10,13 @@
 //
 //   DEMO_AGENT=claude DEMO_CWD=~/scratch/demo npm run examples:demo
 //
-// `DEMO_CWD` is where Claude works: the process's directory, this repo, if it
-// is not set. It asks before it changes anything there. Authentication is
+// `DEMO_CWD` is where Claude works, made if it is missing: the process's
+// directory, this repo, if it is not set. It asks before it changes anything there. Authentication is
 // Claude Code's: `ANTHROPIC_API_KEY`, or what it is already configured with.
 // `CLAUDE_PATH` runs the `claude` you have installed rather than the SDK's
 // own copy; SDK 0.3.N ships Claude Code 2.1.N, so keep the two in step.
 
+import { mkdirSync } from 'node:fs';
 import { useState, type ReactElement } from 'react';
 import { createRoot } from 'react-x11';
 import { z } from 'zod';
@@ -31,6 +32,8 @@ import { fakeDriver, type FakeStep } from '../src/testing/index.js';
 const CLAUDE = process.env.DEMO_AGENT === 'claude';
 const CWD = expandHome(process.env.DEMO_CWD) ?? process.cwd();
 const CLAUDE_PATH = expandHome(process.env.CLAUDE_PATH);
+// a scratch directory named for the demo need not exist yet
+if (CLAUDE) mkdirSync(CWD, { recursive: true });
 
 /** The session's props: the scripted agent, or Claude in `CWD`. */
 const AGENT = CLAUDE

@@ -5,6 +5,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { z } from 'zod';
 
 import { createAgentSession } from '../src/core/session.js';
@@ -129,12 +132,18 @@ const success = {
   num_turns: 1,
 } as SdkMessage;
 
-test('the options say what the session asked for', async () => {
+test('the options say what the session asked for', async (t) => {
+  const work = mkdtempSync(path.join(tmpdir(), 'agent-chat-work-'));
+  const docs = mkdtempSync(path.join(tmpdir(), 'agent-chat-docs-'));
+  t.after(() => {
+    rmSync(work, { recursive: true, force: true });
+    rmSync(docs, { recursive: true, force: true });
+  });
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({
     agent: claudeDriver({ sdk }),
-    cwd: '/work',
-    folders: ['/docs'],
+    cwd: work,
+    folders: [docs],
     instructions: 'Be brief.',
     coreTools: { web: false, edit: 'ask' },
     permissions: 'edits',
@@ -150,8 +159,8 @@ test('the options say what the session asked for', async () => {
   });
   await session.start();
   const o = state.options!;
-  assert.equal(o.cwd, '/work');
-  assert.deepEqual(o.additionalDirectories, ['/docs']);
+  assert.equal(o.cwd, work);
+  assert.deepEqual(o.additionalDirectories, [docs]);
   assert.deepEqual(o.systemPrompt, {
     type: 'preset',
     preset: 'claude_code',
@@ -512,4 +521,20 @@ test('an SDK that fails to load says why, not that it is missing', async () => {
     );
     return true;
   });
+});
+
+test('a working directory that does not exist is said as such, before Claude Code starts', async () => {
+  const { sdk, state } = fakeSdk();
+  const missing = path.join(tmpdir(), 'agent-chat-no-such-dir', 'demo');
+  const session = createAgentSession({
+    agent: claudeDriver({ sdk }),
+    cwd: missing,
+  });
+  session.send('hi');
+  await until(() => session.snapshot.status === 'unavailable');
+  assert.match(
+    session.snapshot.error!,
+    /does not exist: .*agent-chat-no-such-dir\/demo/,
+  );
+  assert.equal(state.options, null, 'query() was never called');
 });

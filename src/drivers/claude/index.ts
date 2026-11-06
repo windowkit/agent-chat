@@ -16,6 +16,9 @@
 //   replaced (`coreTools: { shell: tool }`) to it, so a model that calls
 //   `Bash` anyway reaches the app's function.
 
+import { stat } from 'node:fs/promises';
+
+import { AgentUnavailableError } from '../../core/driver.js';
 import type {
   AgentDriver,
   DriverHost,
@@ -111,6 +114,11 @@ async function startClaude(
   host: DriverHost,
 ): Promise<DriverSession> {
   const config = host.config;
+  // Unless the app runs Claude Code somewhere else, its directories are
+  // this machine's.
+  if (!config.driverOptions.spawnClaudeCodeProcess) {
+    await mustBeDirectories([config.cwd, ...config.folders]);
+  }
   const input = new InputQueue<SdkUserMessage>();
 
   // --- what is turned off, and what is replaced ----------------------------
@@ -762,5 +770,25 @@ function safeTitle(
     return title(input);
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * A working directory that does not exist is the app's mistake to hear
+ * about, said as such. Claude Code launched in one fails with `ENOENT`
+ * naming the executable, which the SDK reads as a binary built for another
+ * libc: "exists but failed to launch".
+ */
+async function mustBeDirectories(paths: readonly string[]): Promise<void> {
+  const missing: string[] = [];
+  for (const p of paths) {
+    const found = await stat(p).catch(() => null);
+    if (!found?.isDirectory()) missing.push(p);
+  }
+  if (missing.length) {
+    throw new AgentUnavailableError(
+      `Claude Code cannot start in a directory that does not exist: ${missing.join(', ')}. ` +
+        'Create it, or pass another cwd.',
+    );
   }
 }

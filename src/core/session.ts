@@ -19,7 +19,7 @@ import {
 } from './driver.js';
 import { transcriptMarkdown } from './markdown.js';
 import { policyDecision } from './policy.js';
-import { reduce, findPart, type TranscriptAction } from './reducer.js';
+import { reduce, findLivePart, type TranscriptAction } from './reducer.js';
 import {
   errorResult,
   normalizeResult,
@@ -498,7 +498,7 @@ class Session implements AgentSession {
       return;
     }
     if (choice === 'allow-session') {
-      const part = findPart(this.#snapshot.messages, toolId);
+      const part = findLivePart(this.#snapshot.messages, toolId);
       if (part?.type === 'tool') this.#sessionAllowed.add(part.label);
     }
     resolve({ behavior: 'allow' });
@@ -612,7 +612,7 @@ class Session implements AgentSession {
       return { behavior: 'deny', message: decision.message };
     }
 
-    if (!findPart(this.#snapshot.messages, call.id)) {
+    if (!findLivePart(this.#snapshot.messages, call.id)) {
       this.#dispatch({
         type: 'tool-start',
         id: call.id,

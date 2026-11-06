@@ -38,7 +38,12 @@ export {
   type ToolRenderInfo,
   type ToolResult,
 } from './tools.js';
-export { reduce, findPart, type TranscriptAction } from './reducer.js';
+export {
+  reduce,
+  findLivePart,
+  findPart,
+  type TranscriptAction,
+} from './reducer.js';
 export { categoryOf, policyDecision } from './policy.js';
 export { messageMarkdown, transcriptMarkdown } from './markdown.js';
 export * from './types.js';

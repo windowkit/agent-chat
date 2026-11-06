@@ -10,6 +10,7 @@ import { createAgentSession, describeRenderers } from '../src/core/session.js';
 import { defineTool } from '../src/core/tools.js';
 import { fakeDriver, scripted } from '../src/testing/index.js';
 import { AgentUnavailableError } from '../src/core/driver.js';
+import type { ToolPart } from '../src/core/types.js';
 import { textOf, tool, until } from './helpers.js';
 
 test('a reply streams into the transcript and the turn ends idle', async () => {
@@ -355,4 +356,48 @@ test('toMarkdown writes the transcript as it was said', async () => {
     session.toMarkdown(),
     '**You:**\n\nwhat is 2 * 3?\n\n---\n\n`2 * 3` is 6',
   );
+});
+
+test("a second turn's tool call is its own card, though the driver reuses its id", async () => {
+  // a driver's ids are unique within a turn, not across a session: the demo's
+  // script names its calls, and every reply runs the same script
+  const turn = [
+    {
+      type: 'call' as const,
+      id: 'bash',
+      name: 'Bash',
+      kind: 'execute' as const,
+      input: { command: 'npm test' },
+      result: 'ok',
+    },
+  ];
+  const session = createAgentSession({
+    agent: fakeDriver(scripted(turn, turn)),
+  });
+  session.send('first');
+  await until(() => session.snapshot.status === 'waiting');
+  session.respond('bash', 'allow-once');
+  await until(() => session.snapshot.status === 'idle');
+
+  session.send('second');
+  await until(
+    () => session.snapshot.status === 'waiting',
+    'the second approval',
+  );
+  const messages = () => session.snapshot.messages;
+  const stateIn = (i: number) =>
+    messages()[i]!.parts.find(
+      (p): p is ToolPart => p.type === 'tool' && p.id === 'bash',
+    )?.state;
+  assert.equal(messages().length, 4);
+  assert.equal(stateIn(1), 'done', 'the first turn keeps its card as it ended');
+  assert.equal(
+    stateIn(3),
+    'awaiting-approval',
+    'the approval is in the turn that asked',
+  );
+  session.respond('bash', 'allow-once');
+  await until(() => session.snapshot.status === 'idle');
+  assert.equal(stateIn(1), 'done');
+  assert.equal(stateIn(3), 'done');
 });

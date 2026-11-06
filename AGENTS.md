@@ -48,6 +48,12 @@ emitted `.d.ts` names a Node type or ProseMirror's.
   recorder write a session to JSONL.
 - **Drivers report deltas, never snapshots**, and the reducer accumulates.
   A driver that re-sends whole content is how a tool part vanishes.
+- **An event touches only a turn still under way.** A driver's ids are
+  unique within a turn, not across a session — the demo's script names its
+  calls, and every reply runs it — so the reducer looks parts up in messages
+  that are not `done` (`findLivePart`). Looked up across the transcript, a
+  second turn's tool call updated the first turn's card, and its approval
+  row appeared there.
 - **The reducer replaces only what a change touched.** A streamed token
   replaces one part, its message and the array; every other message is the
   object it was. `MessageView` is memoized on that.

@@ -228,7 +228,7 @@ function text(
   now: number,
 ): Messages {
   const kind = ev.reasoning ? 'reasoning' : 'text';
-  const found = findPart(messages, ev.id);
+  const found = findLivePart(messages, ev.id);
   if (found) {
     return mapPart(messages, ev.id, (p) =>
       p.type === 'text' || p.type === 'reasoning'
@@ -253,7 +253,7 @@ function toolStart(
   ev: Extract<DriverEvent, { type: 'tool-start' }>,
   now: number,
 ): Messages {
-  if (findPart(messages, ev.id)) {
+  if (findLivePart(messages, ev.id)) {
     // a driver that saw the call twice (a stream event, then the block)
     return mapPart(messages, ev.id, (p) =>
       p.type === 'tool'
@@ -312,7 +312,7 @@ function inChildren(
   now: number,
   fn: (children: Messages) => Messages,
 ): Messages {
-  if (!findPart(messages, parent)) return fn(messages);
+  if (!findLivePart(messages, parent)) return fn(messages);
   return mapPart(messages, parent, (p) =>
     p.type === 'tool' ? { ...p, children: fn(p.children ?? []) } : p,
   );
@@ -358,12 +358,29 @@ function settle(p: Part, stopped: boolean): Part {
 
 // --- finding and replacing, children included ------------------------------
 
+/** The part with this id, in any message. */
 export function findPart(messages: Messages, id: string): Part | undefined {
+  return find(messages, id, false);
+}
+
+/**
+ * The part with this id in a turn still under way: what an event may touch.
+ * A driver's ids are unique within a turn, not across a session — a script
+ * that names its calls runs the same names every turn — so a finished turn's
+ * parts are never the ones an event means. They keep the state they ended in.
+ */
+export function findLivePart(messages: Messages, id: string): Part | undefined {
+  return find(messages, id, true);
+}
+
+function find(messages: Messages, id: string, live: boolean): Part | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
-    for (const p of messages[i]!.parts) {
+    const m = messages[i]!;
+    if (live && m.done) continue;
+    for (const p of m.parts) {
       if (p.id === id) return p;
       if (p.type === 'tool' && p.children) {
-        const inner = findPart(p.children, id);
+        const inner = find(p.children, id, live);
         if (inner) return inner;
       }
     }
@@ -371,6 +388,7 @@ export function findPart(messages: Messages, id: string): Part | undefined {
   return undefined;
 }
 
+/** Replace the live part with this id (`findLivePart`'s), and the path to it. */
 function mapPart(
   messages: Messages,
   id: string,
@@ -378,11 +396,16 @@ function mapPart(
 ): Messages {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]!;
+    if (m.done) continue;
     for (let j = 0; j < m.parts.length; j++) {
       const p = m.parts[j]!;
       let next: Part | undefined;
       if (p.id === id) next = fn(p);
-      else if (p.type === 'tool' && p.children && findPart(p.children, id)) {
+      else if (
+        p.type === 'tool' &&
+        p.children &&
+        findLivePart(p.children, id)
+      ) {
         next = { ...p, children: mapPart(p.children, id, fn) };
       }
       if (next !== undefined) {

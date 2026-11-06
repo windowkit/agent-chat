@@ -166,3 +166,24 @@ test('a stop settles streaming text, open tools and open questions', () => {
   assert.equal((tool as ToolPart).state, 'cancelled');
   assert.equal((question as { state: string }).state, 'cancelled');
 });
+
+test('an event never touches a finished turn: a reused id is a new part', () => {
+  let m = reduce(
+    [user('u1', 'first')],
+    { type: 'tool-start', id: 't', name: 'Bash', input: { command: 'ls' } },
+    1,
+  );
+  m = reduce(m, { type: 'tool-end', id: 't', state: 'done' });
+  m = reduce(m, { type: 'turn-end', reason: 'done' });
+  m = reduce(m, { type: 'user', message: user('u2', 'second') });
+  m = reduce(m, { type: 'tool-start', id: 't', name: 'Bash', input: {} }, 2);
+  m = reduce(m, { type: 'tool-update', id: 't', state: 'running' });
+  m = reduce(m, { type: 'text', id: 'x', delta: 'more' }, 2);
+  assert.equal(m.length, 4);
+  assert.equal((m[1]!.parts[0] as ToolPart).state, 'done');
+  assert.equal((m[3]!.parts[0] as ToolPart).state, 'running');
+  // and after a stop, a driver's late word for a cancelled call changes nothing
+  m = reduce(m, { type: 'stopped' });
+  const after = reduce(m, { type: 'tool-end', id: 't', state: 'done' });
+  assert.equal(after, m);
+});

@@ -1,0 +1,45 @@
+name: release-please
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Manifest mode: the strategy is in release-please-config.json. v5 takes
+      # no per-package inputs here; anything passed besides `release-type` is
+      # warned about and ignored.
+      - uses: googleapis/release-please-action@v5
+        id: release
+
+      # npm trusted publishing (OIDC): no token secret. Configure this repo
+      # and workflow as a trusted publisher for @windowkit/agent-chat on
+      # npmjs.com. The first publish cannot go through here — trusted
+      # publishing binds to a package that already exists — so 0.1.0 is
+      # published by hand once.
+      - uses: actions/checkout@v7
+        if: ${{ steps.release.outputs.release_created }}
+      - uses: actions/setup-node@v7
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1
+      - run: npm install -g npm@latest
+        if: ${{ steps.release.outputs.release_created }}
+      - run: npm ci
+        if: ${{ steps.release.outputs.release_created }}
+      - run: npm run build
+        if: ${{ steps.release.outputs.release_created }}
+      - run: npm run check:package
+        if: ${{ steps.release.outputs.release_created }}
+      # A scoped package defaults to restricted; this one is public.
+      - run: npm publish --access public
+        if: ${{ steps.release.outputs.release_created }}

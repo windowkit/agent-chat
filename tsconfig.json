@@ -1,0 +1,29 @@
+// The typecheck-everything project: `npm run typecheck`, and what an editor
+// picks up. It emits nothing; `tsconfig.build.json` extends this and is the
+// only config that writes files.
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    // react-x11's declarations use `Symbol.asyncDispose`, and `skipLibCheck`
+    // is off, so their lib requirements are ours.
+    "lib": ["ES2022", "ESNext.Disposable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react-x11",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noImplicitOverride": true,
+    // Imports are erased exactly as written, so what `tsc` emits and what
+    // `tsx` strips agree. Type-only imports must say so.
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "noEmit": true,
+    "skipLibCheck": false,
+    "types": ["node"],
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src", "test", "examples", "scripts"]
+}

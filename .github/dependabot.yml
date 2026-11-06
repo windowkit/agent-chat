@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      react-x11:
+        patterns: ['react-x11', '@react-x11/*']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.log
+.DS_Store
+*.tgz
+# transcripts recorded by examples (AGENT_CHAT_RECORD)
+*.jsonl

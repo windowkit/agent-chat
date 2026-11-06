@@ -1,0 +1,21 @@
+// The build. `src/` in, `dist/` out: ESM JavaScript, declarations, and both
+// map kinds. `files` ships `src` beside `dist`, so the maps resolve and "go
+// to definition" lands on TypeScript a consumer's editor can read.
+//
+// Unlike `@react-x11/components`, this package keeps node's types in the
+// build: it drives local processes and runs only under Node. What it must not
+// do is *publish* a node type. No exported declaration may name `Buffer`,
+// `ChildProcess` or `NodeJS.*`, so an app type-checks against it without
+// `@types/node`. `scripts/check-package.ts` greps the emitted `.d.ts` for that.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src"]
+}

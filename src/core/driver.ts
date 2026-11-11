@@ -11,6 +11,8 @@ import type {
   Attachment,
   Capabilities,
   CoreToolKey,
+  MessageSource,
+  PeerSource,
   PermissionPolicy,
   PlanEntry,
   Question,
@@ -72,6 +74,12 @@ export type DriverEvent =
       error?: string;
     }
   | { type: 'plan'; entries: readonly PlanEntry[]; parent?: string }
+  /**
+   * A message the harness took from someone other than the user — another
+   * session, a channel — and is acting on. A turn starts with it if none is
+   * running, as one does for `send`.
+   */
+  | { type: 'message'; id: string; text: string; from: MessageSource }
   | { type: 'notice'; level: 'info' | 'warning' | 'error'; text: string }
   | { type: 'info'; info: Partial<SessionInfo> }
   | { type: 'usage'; usage: Usage }
@@ -152,6 +160,8 @@ export interface OutgoingMessage {
   attachments: readonly Attachment[];
   /** Sent while a turn runs; the driver delivers it as steering. */
   steer: boolean;
+  /** Sent on another session's behalf. Absent: the user's own. */
+  from?: PeerSource;
 }
 
 export interface DriverSession {

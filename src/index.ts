@@ -30,6 +30,7 @@ export {
   createAgentSession,
   describeRenderers,
   messageMarkdown,
+  sourceLabel,
   transcriptMarkdown,
   type AgentDriver,
   type AgentOptions,

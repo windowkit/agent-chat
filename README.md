@@ -84,6 +84,12 @@ const openTicket = defineTool({
 // The app drives the session: the same options, moved into a hook.
 const agent = useAgent({ agent: 'claude', tools: { openTicket } });
 <AgentChat session={agent} />;
+
+// Another session's words: drawn as theirs, and told to the agent as such.
+agent.send({
+  text: draft,
+  from: { kind: 'peer', id: 'writer', name: 'Writer' },
+});
 ```
 
 [docs/agent-chat.md](docs/agent-chat.md) has every prop, the gate, and the

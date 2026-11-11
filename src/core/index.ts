@@ -45,5 +45,9 @@ export {
   type TranscriptAction,
 } from './reducer.js';
 export { categoryOf, policyDecision } from './policy.js';
-export { messageMarkdown, transcriptMarkdown } from './markdown.js';
+export {
+  messageMarkdown,
+  sourceLabel,
+  transcriptMarkdown,
+} from './markdown.js';
 export * from './types.js';

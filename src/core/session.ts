@@ -110,6 +110,10 @@ export interface AgentSession {
   readonly tools: ReadonlyMap<string, AnyToolDef>;
   /** Start the harness now, rather than at the first `send`. */
   start(): Promise<void>;
+  /**
+   * Send a message: the user's, or, with `from`, another session's. Sent
+   * mid-turn it steers where the harness can, and otherwise waits its turn.
+   */
   send(input: string | ComposedMessage): void;
   /** Stop the turn. Queued messages come back as `snapshot.restored`. */
   stop(): Promise<void>;
@@ -311,6 +315,14 @@ class Session implements AgentSession {
           },
         });
         return;
+      case 'message':
+        // the harness took it and is acting on it: a turn, if none runs
+        this.#dispatch(event);
+        if (!this.#turn) {
+          this.#turn = new AbortController();
+          this.#set({ status: this.#paused ? 'paused' : 'running' });
+        }
+        return;
       case 'turn-end':
         this.#dispatch(event);
         if (event.reason === 'error' && event.error) {
@@ -338,9 +350,11 @@ class Session implements AgentSession {
   // --- the user's side -------------------------------------------------------
 
   send(input: string | ComposedMessage): void {
-    const composed = typeof input === 'string' ? { text: input } : input;
+    const composed: ComposedMessage =
+      typeof input === 'string' ? { text: input } : input;
     const text = composed.text;
     const attachments = composed.attachments ?? [];
+    const from = composed.from;
     if (!text.trim() && !attachments.length) return;
     if (this.#snapshot.status === 'closed') return;
 
@@ -369,10 +383,17 @@ class Session implements AgentSession {
         role: 'user',
         parts,
         createdAt: Date.now(),
+        ...(from ? { from } : {}),
         ...(queued ? { queued: true } : {}),
       },
     });
-    const out: OutgoingMessage = { id, text, attachments, steer };
+    const out: OutgoingMessage = {
+      id,
+      text,
+      attachments,
+      steer,
+      ...(from ? { from } : {}),
+    };
     if (queued) this.#queue.push(out);
     else void this.#deliver(out);
   }
@@ -397,7 +418,12 @@ class Session implements AgentSession {
 
   async stop(): Promise<void> {
     if (!this.#turn && !this.#queue.length) return;
-    const restored = this.#queue.map((m) => m.text).join('\n\n');
+    // what the user typed goes back to the composer; what another session
+    // sent is not theirs to edit, and goes with the turn
+    const restored = this.#queue
+      .filter((m) => !m.from)
+      .map((m) => m.text)
+      .join('\n\n');
     const dropped = new Set(this.#queue.map((m) => m.id));
     this.#queue.length = 0;
     this.#turn?.abort();

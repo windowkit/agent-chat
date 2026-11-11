@@ -1116,3 +1116,9 @@ Where it departs from the design:
   markdown in the transcript.
 - **Edit, retry and branches are M2**, as planned: `capabilities.fork` is
   false on every driver so far, so no Edit button is drawn.
+- **Messages from other sessions, which the design did not cover.** A
+  user-role message says who wrote it when the user did not (`from`: a peer
+  session or a channel). The chat draws it on the agent's side with its
+  name, and `send` takes `from`, which the Claude driver sends as Claude
+  Code's own peer envelope and `origin`. The user's own messages now carry
+  `origin: { kind: 'human' }`.

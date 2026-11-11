@@ -19,6 +19,11 @@ export interface SdkUserMessage {
   };
   parent_tool_use_id: null;
   priority?: 'now' | 'next' | 'later';
+  /** Who wrote it: `{ kind: 'human' }` for the user, a peer's for another
+   *  session (`peers.ts`). */
+  origin?: Record<string, unknown>;
+  /** Delivered as written: no `@path` expansion, no slash commands. */
+  client_composed?: true;
 }
 
 /** What the query yields. Read loosely: the union grows every month. */

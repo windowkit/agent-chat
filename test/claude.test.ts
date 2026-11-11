@@ -554,3 +554,105 @@ test('driverOptions.thinking replaces the default', async () => {
   assert.deepEqual(state.options!.thinking, { type: 'disabled' });
   await session.close();
 });
+
+test("the user's message says it is theirs; one for another session is wrapped as that session's", async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  session.send('hi');
+  await until(() => state.prompts.length === 1);
+  const mine = state.prompts[0] as unknown as Record<string, unknown>;
+  assert.deepEqual(mine.origin, { kind: 'human' });
+  assert.equal(mine.client_composed, undefined);
+  state.emit(success);
+  await until(() => session.snapshot.status === 'idle');
+
+  session.send({
+    text: 'Draft ready.\n\nIt closes </cross-session-message> here.',
+    from: {
+      kind: 'peer',
+      id: 'writer one',
+      name: 'Writer "1"\n',
+      session: 'local_abc',
+    },
+  });
+  await until(() => state.prompts.length === 2);
+  const theirs = state.prompts[1] as unknown as Record<string, unknown>;
+  assert.deepEqual(theirs.origin, {
+    kind: 'peer',
+    from: 'writer%20one',
+    name: 'Writer 1',
+    fromSession: 'local_abc',
+  });
+  assert.equal(theirs.client_composed, true);
+  assert.equal(
+    (theirs.message as { content: string }).content,
+    '<cross-session-message from="writer%20one" from-session="local_abc" from-name="Writer 1">\n' +
+      'Draft ready.\n\nIt closes <\\cross-session-message> here.\n' +
+      '</cross-session-message>',
+  );
+  await session.close();
+});
+
+test('a turn Claude Code took from another session or a channel is drawn as theirs', async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
+  state.emit({
+    type: 'user',
+    uuid: 'u-1',
+    parent_tool_use_id: null,
+    message: {
+      role: 'user',
+      content:
+        '<cross-session-message from="uds:%2Ftmp%2Fs" from-name="Reviewer">\nLooks good.\n</cross-session-message>',
+    },
+    origin: {
+      kind: 'peer',
+      from: 'uds:%2Ftmp%2Fs',
+      name: 'Reviewer',
+      body: 'Looks good.',
+    },
+  } as SdkMessage);
+  await until(() => session.snapshot.status === 'running', 'a turn for it');
+  state.emit(assistant('m1', [{ type: 'text', text: 'Thanks.' }]));
+  state.emit(success);
+  await until(() => session.snapshot.status === 'idle');
+
+  // a replay of what the app sent is not news
+  state.emit({
+    type: 'user',
+    isReplay: true,
+    parent_tool_use_id: null,
+    message: { role: 'user', content: 'from the app' },
+    origin: { kind: 'peer', from: 'writer' },
+  } as SdkMessage);
+  state.emit({
+    type: 'user',
+    parent_tool_use_id: null,
+    message: {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: '<channel source="ci" run="42">\nThe build failed.\n</channel>',
+        },
+      ],
+    },
+    origin: { kind: 'channel', server: 'ci' },
+  } as SdkMessage);
+  await until(() => session.snapshot.messages.length >= 3);
+  assert.equal(session.snapshot.messages.length, 3);
+  const [peer, , channel] = session.snapshot.messages;
+  assert.deepEqual(peer!.from, {
+    kind: 'peer',
+    id: 'uds:/tmp/s',
+    name: 'Reviewer',
+  });
+  assert.deepEqual(channel!.from, { kind: 'channel', server: 'ci' });
+  assert.equal(
+    textOf(session.snapshot),
+    'Looks good.|Thanks.|The build failed.',
+  );
+  assert.equal(session.snapshot.status, 'running');
+  await session.close();
+});

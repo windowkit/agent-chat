@@ -38,6 +38,8 @@ What the driver does with the session's options:
 | the gate                  | a `PreToolUse` hook, and `canUseTool` for the approval row                                                                        |
 | thinking                  | `thinking: { type: 'adaptive', display: 'summarized' }`, so a thought has text to show (the SDK omits it by default on Opus 4.7+) |
 | `model`, `resume`         | `model`, `resume`                                                                                                                 |
+| a message the user sent   | `origin: { kind: 'human' }`: Claude Code treats a turn with no origin as unattributed                                             |
+| `send` with `from`        | `origin: { kind: 'peer', from, name }`, the text in a `<cross-session-message>` envelope, and `client_composed`                   |
 | `driverOptions`           | merged over all of it                                                                                                             |
 
 Before it starts Claude Code, the driver checks that `cwd` and every one of
@@ -62,6 +64,19 @@ Three things about it that are decisions:
 - **Stop swallows the result it causes.** `interrupt()` ends the turn with a
   result message, which may arrive after the next turn has begun; the driver
   counts the interrupts and does not let that result end the new turn.
+
+A user turn Claude Code reports with `origin.kind` `'peer'` or `'channel'`
+is a message from another session or an MCP channel. The driver reports it
+as one, with its envelope taken off: a peer's `origin.body` where it has
+one, and the text inside `<channel>` for a channel. Its turn ends with its
+`result`, as a turn the app started does.
+
+What is not verified against a real Claude Code: whether it reports every
+such turn on the output stream. Its types say a host renders them, and the
+driver is tested against those types. And a message the app sends with
+`from` is a peer's to Claude Code's `crossSessionInbound` setting, which by
+default holds an undeclared sender's message for approval when the
+receiving session runs tools without asking (`permissions: 'auto'`).
 
 `TodoWrite` is drawn as the turn's plan rather than as a tool card, and
 `AskUserQuestion` as a question form whose answers go back through

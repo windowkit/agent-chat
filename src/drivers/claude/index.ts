@@ -36,6 +36,7 @@ import type {
   ToolCall,
 } from '../../core/types.js';
 import { InputQueue } from './input.js';
+import { incomingOf, originOf, peerEnvelope } from './peers.js';
 import { shapeFromJsonSchema, zodShapeOf } from './schema.js';
 import {
   loadClaudeSdk,
@@ -308,6 +309,7 @@ async function startClaude(
   // --- what the query yields ------------------------------------------------
   let inTurn = false;
   let swallow = 0;
+  let received = 0;
   let asked = false;
   let message = '';
   const blocks = new Map<
@@ -327,9 +329,20 @@ async function startClaude(
         return onStream(m.event as Record<string, unknown>, parent);
       case 'assistant':
         return onAssistant(m, parent);
-      case 'user':
-        if (!m.isReplay) onToolResults(m);
+      case 'user': {
+        if (m.isReplay) return;
+        const incoming = incomingOf(m);
+        if (!incoming) return onToolResults(m);
+        // a turn Claude Code took from another session or a channel: it is
+        // acting on it, so a stop has a result to swallow
+        inTurn = true;
+        host.emit({
+          type: 'message',
+          id: typeof m.uuid === 'string' ? `in:${m.uuid}` : `in:${++received}`,
+          ...incoming,
+        });
         return;
+      }
       case 'result':
         return onResult(m);
     }
@@ -600,10 +613,22 @@ async function startClaude(
     capabilities: CLAUDE_CAPABILITIES,
     send(outgoing: OutgoingMessage) {
       if (!outgoing.steer) inTurn = true;
+      const from = outgoing.from;
       input.push({
         type: 'user',
-        message: { role: 'user', content: contentOf(outgoing) },
+        message: {
+          role: 'user',
+          content: contentOf(
+            from
+              ? { ...outgoing, text: peerEnvelope(from, outgoing.text) }
+              : outgoing,
+          ),
+        },
         parent_tool_use_id: null,
+        origin: originOf(from),
+        // another session's words, delivered as written: no `@path`
+        // expansion, no slash commands
+        ...(from ? { client_composed: true as const } : {}),
         ...(outgoing.steer ? { priority: 'next' as const } : {}),
       });
     },

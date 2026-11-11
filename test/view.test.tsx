@@ -311,3 +311,25 @@ test('a thought with no text is not drawn, and one with text can be opened', asy
   assert.ok(await screen.findByText('weighing the options'));
   await session.close();
 });
+
+test("a message from another session is drawn as theirs: named, on the agent's side", async () => {
+  const session = createAgentSession({
+    agent: fakeDriver(scripted([{ type: 'say', text: 'thanks' }])),
+  });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  await act(() =>
+    session.send({
+      text: 'The **draft** is ready.',
+      from: { kind: 'peer', id: 'writer', name: 'Writer' },
+    }),
+  );
+  await until(() => session.snapshot.status === 'idle', 'the turn to end');
+  const label = await screen.findByText('Writer · another session');
+  await until(
+    () => richText().includes('The draft is ready.'),
+    'its text, as markdown',
+  );
+  const x = (label as unknown as { abs: { x: number } }).abs.x;
+  assert.ok(x < options.width / 4, `on the left, not the user's side: ${x}`);
+  await session.close();
+});

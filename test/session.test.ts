@@ -401,3 +401,56 @@ test("a second turn's tool call is its own card, though the driver reuses its id
   assert.equal(stateIn(1), 'done');
   assert.equal(stateIn(3), 'done');
 });
+
+test('a message sent for another session says so, to the transcript and the driver', async () => {
+  const agent = fakeDriver(scripted([{ type: 'say', text: 'noted' }]));
+  const session = createAgentSession({ agent });
+  const from = { kind: 'peer', id: 'writer', name: 'Writer' } as const;
+  session.send({ text: 'The draft is ready.', from });
+  await until(() => session.snapshot.status === 'idle');
+  assert.deepEqual(agent.sent[0]!.from, from);
+  assert.deepEqual(session.snapshot.messages[0]!.from, from);
+  assert.equal(
+    session.toMarkdown(),
+    '**From Writer:**\n\nThe draft is ready.\n\n---\n\nnoted',
+  );
+});
+
+test("stop gives back the user's queued text, and drops another session's", async () => {
+  const session = createAgentSession({
+    agent: fakeDriver(scripted([{ type: 'wait', ms: 10_000 }])),
+  });
+  session.send('first');
+  await until(() => session.snapshot.status === 'running');
+  session.send('mine');
+  session.send({ text: 'theirs', from: { kind: 'peer', id: 'writer' } });
+  await session.stop();
+  assert.equal(session.snapshot.restored, 'mine');
+  assert.equal(
+    session.snapshot.messages.some((m) => m.queued),
+    false,
+  );
+});
+
+test('a message the harness took from elsewhere is drawn as theirs, and runs a turn', async () => {
+  const agent = fakeDriver(scripted([{ type: 'say', text: 'on it' }]));
+  const session = createAgentSession({ agent });
+  await session.start();
+  const seen: string[] = [session.snapshot.status];
+  session.subscribe(() => {
+    if (seen.at(-1) !== session.snapshot.status) {
+      seen.push(session.snapshot.status);
+    }
+  });
+  agent.receive('CI failed on main', { kind: 'channel', server: 'ci' });
+  await until(
+    () => session.snapshot.status === 'idle' && textOf(session.snapshot) !== '',
+    'the turn it ran',
+  );
+  assert.deepEqual(seen, ['idle', 'running', 'idle']);
+  const [message] = session.snapshot.messages;
+  assert.equal(message!.role, 'user');
+  assert.deepEqual(message!.from, { kind: 'channel', server: 'ci' });
+  assert.equal(textOf(session.snapshot), 'CI failed on main|on it');
+  assert.equal(agent.sent.length, 0, 'it arrived; nothing was sent');
+});

@@ -14,6 +14,7 @@ import type {
 import {
   NO_CAPABILITIES,
   type Capabilities,
+  type MessageSource,
   type Question,
   type SessionInfo,
   type ToolCall,
@@ -71,6 +72,13 @@ export interface FakeDriver extends AgentDriver {
   readonly host: DriverHost | null;
   /** How many times `interrupt` was called. */
   readonly interrupts: number;
+  /**
+   * A message from someone other than the user — another session, a
+   * channel — arriving as a harness reports one: the session draws it, and
+   * the script plays a turn for it after any turn under way, handed `from`
+   * where it is a peer.
+   */
+  receive(text: string, from: MessageSource): void;
 }
 
 const FAKE_CAPABILITIES: Capabilities = Object.freeze({
@@ -88,6 +96,8 @@ export function fakeDriver(
   const sent: OutgoingMessage[] = [];
   let host: DriverHost | null = null;
   let interrupts = 0;
+  let take: ((text: string, from: MessageSource) => void) | null = null;
+  let received = 0;
   const capabilities: Capabilities = {
     ...FAKE_CAPABILITIES,
     ...options.capabilities,
@@ -103,6 +113,12 @@ export function fakeDriver(
     },
     get interrupts() {
       return interrupts;
+    },
+    receive(text, from) {
+      if (!take) {
+        throw new Error('fakeDriver: receive() before the session started');
+      }
+      take(text, from);
     },
     async start(h) {
       if (options.failStart) throw options.failStart;
@@ -120,31 +136,57 @@ export function fakeDriver(
       let running: AbortController | null = null;
       let chain = Promise.resolve();
 
+      /** A turn for `message`, after the one under way. One that arrived
+       *  from elsewhere is reported as its turn begins, as a harness reports
+       *  a message when it takes it. */
+      const playTurn = (message: OutgoingMessage, arrived?: MessageSource) => {
+        const n = turn++;
+        chain = chain.then(async () => {
+          if (arrived) {
+            h.emit({
+              type: 'message',
+              id: message.id,
+              text: message.text,
+              from: arrived,
+            });
+          }
+          const abort = new AbortController();
+          running = abort;
+          try {
+            await play(h, script(message, n), n, abort.signal);
+            if (!abort.signal.aborted)
+              h.emit({ type: 'turn-end', reason: 'done' });
+          } catch (err) {
+            if (!abort.signal.aborted) {
+              h.emit({
+                type: 'turn-end',
+                reason: 'error',
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          } finally {
+            if (running === abort) running = null;
+          }
+        });
+      };
+      take = (text, from) =>
+        playTurn(
+          {
+            id: `r${++received}`,
+            text,
+            attachments: [],
+            steer: false,
+            ...(from.kind === 'peer' ? { from } : {}),
+          },
+          from,
+        );
+
       const session: DriverSession = {
         capabilities,
         send(message) {
           sent.push(message);
           if (message.steer) return;
-          const n = turn++;
-          chain = chain.then(async () => {
-            const abort = new AbortController();
-            running = abort;
-            try {
-              await play(h, script(message, n), n, abort.signal);
-              if (!abort.signal.aborted)
-                h.emit({ type: 'turn-end', reason: 'done' });
-            } catch (err) {
-              if (!abort.signal.aborted) {
-                h.emit({
-                  type: 'turn-end',
-                  reason: 'error',
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              }
-            } finally {
-              if (running === abort) running = null;
-            }
-          });
+          playTurn(message);
         },
         async interrupt() {
           interrupts++;

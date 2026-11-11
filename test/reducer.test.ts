@@ -187,3 +187,23 @@ test('an event never touches a finished turn: a reused id is a new part', () => 
   const after = reduce(m, { type: 'tool-end', id: 't', state: 'done' });
   assert.equal(after, m);
 });
+
+test('a message from another session goes in before the queued ones, once', () => {
+  let m = reduce(
+    [user('u1', 'first')],
+    { type: 'text', id: 'a', delta: 'x' },
+    1,
+  );
+  m = reduce(m, { type: 'user', message: user('u2', 'second', true) });
+  const from = { kind: 'peer', id: 'writer', name: 'Writer' } as const;
+  const ev = { type: 'message', id: 'p1', text: 'done here', from } as const;
+  m = reduce(m, ev, 2);
+  m = reduce(m, ev, 3);
+  assert.deepEqual(
+    m.map((x) => x.id),
+    ['u1', m[1]!.id, 'p1', 'u2'],
+  );
+  assert.equal(m[2]!.role, 'user');
+  assert.deepEqual(m[2]!.from, from);
+  assert.equal((m[2]!.parts[0] as { text: string }).text, 'done here');
+});

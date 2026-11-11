@@ -2,7 +2,13 @@
 // saves. Text is written as the agent wrote it; a tool call is one line,
 // since its output is the harness's and usually long.
 
-import type { AgentMessage, Part } from './types.js';
+import type { AgentMessage, MessageSource, Part } from './types.js';
+
+/** What a message's author is called: a peer's name, or its id; a
+ *  channel's server. */
+export function sourceLabel(from: MessageSource): string {
+  return from.kind === 'peer' ? from.name || from.id : from.server;
+}
 
 export function messageMarkdown(message: AgentMessage): string {
   return message.parts.map(partMarkdown).filter(Boolean).join('\n\n');
@@ -13,7 +19,9 @@ export function transcriptMarkdown(messages: readonly AgentMessage[]): string {
     .map((m) => {
       const body = messageMarkdown(m);
       if (!body) return '';
-      return m.role === 'user' ? `**You:**\n\n${body}` : body;
+      if (m.role !== 'user') return body;
+      const who = m.from ? `From ${sourceLabel(m.from)}` : 'You';
+      return `**${who}:**\n\n${body}`;
     })
     .filter(Boolean)
     .join('\n\n---\n\n');

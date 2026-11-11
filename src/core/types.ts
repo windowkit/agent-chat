@@ -171,11 +171,29 @@ export type Part =
   | NoticePart
   | DataPart;
 
+/**
+ * Who wrote a message that reached the agent from somewhere other than the
+ * person at the keyboard.
+ */
+export type MessageSource =
+  /** Another agent session, or a process speaking as one. `id` addresses
+   *  it and `name` is what is shown; `session` is the harness's own id for
+   *  it, where it has one. */
+  | { kind: 'peer'; id: string; name?: string; session?: string }
+  /** An event pushed into the session from outside, named by what pushed
+   *  it: one of Claude Code's MCP channels. */
+  | { kind: 'channel'; server: string };
+
+/** A message an app sends on another session's behalf. */
+export type PeerSource = Extract<MessageSource, { kind: 'peer' }>;
+
 export interface AgentMessage {
   id: string;
   role: 'user' | 'assistant';
   parts: readonly Part[];
   createdAt: number;
+  /** A user-role message the user did not write: who did. */
+  from?: MessageSource;
   /** A user message sent while the agent was running, waiting its turn. */
   queued?: boolean;
   /** An assistant message whose turn has ended. */
@@ -294,4 +312,10 @@ export interface Attachment {
 export interface ComposedMessage {
   text: string;
   attachments?: readonly Attachment[];
+  /**
+   * Sent on another session's behalf: drawn as theirs, and the harness is
+   * told the user did not write it. Absent, the message is the user's,
+   * whether they typed it or the app sent it for them.
+   */
+  from?: PeerSource;
 }

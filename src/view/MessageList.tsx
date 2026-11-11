@@ -5,7 +5,7 @@
 import { memo, useState, type ReactElement } from 'react';
 import { Button, Icon, useClipboard } from 'react-x11';
 
-import { messageMarkdown } from '../core/markdown.js';
+import { messageMarkdown, sourceLabel } from '../core/markdown.js';
 import type { AgentMessage, Part, PlanPart } from '../core/types.js';
 import { useLook, type ChatLook } from './look.js';
 import { QuestionCard } from './QuestionCard.js';
@@ -46,8 +46,18 @@ function UserMessage({
   message: AgentMessage;
   look: ChatLook;
 }): ReactElement {
+  // the user's own on the right, filled; anyone else's on the left, framed
+  // and named, so a message another session sent is never read as the
+  // user's
+  const from = message.from;
   return (
-    <box style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+    <box
+      style={{
+        flexDirection: 'column',
+        alignItems: from ? 'flex-start' : 'flex-end',
+        gap: 4,
+      }}
+    >
       <box
         style={{
           flexDirection: 'column',
@@ -58,10 +68,17 @@ function UserMessage({
           paddingTop: 8,
           paddingBottom: 8,
           borderRadius: 10,
-          backgroundColor: look.bubble,
+          ...(from
+            ? { borderWidth: 1, borderColor: look.border }
+            : { backgroundColor: look.bubble }),
           opacity: message.queued ? 0.6 : 1,
         }}
       >
+        {from ? (
+          <text style={{ color: look.muted, fontSize: 11, fontWeight: 'bold' }}>
+            {`${sourceLabel(from)} · ${from.kind === 'peer' ? 'another session' : 'channel'}`}
+          </text>
+        ) : null}
         {message.parts.map((p) =>
           // what was typed as markdown is drawn as markdown once it is sent,
           // with the same fences, components and code actions as a reply

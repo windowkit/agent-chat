@@ -52,6 +52,7 @@
     "examples:claude": "tsx examples/claude.tsx",
     "examples:tools": "tsx examples/tools.tsx",
     "examples:intercept": "tsx examples/intercept.tsx",
+    "examples:peers": "tsx examples/peers.tsx",
     "screenshots": "tsx scripts/screenshot.tsx"
   },
   "peerDependencies": {

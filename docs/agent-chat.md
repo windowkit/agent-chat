@@ -254,19 +254,19 @@ session made with `useAgent`.
 options `<AgentChat>` takes; `createAgentSession(options)` makes one outside
 React (`@windowkit/agent-chat/core`). An `AgentSession`:
 
-| Member                                | Notes                                                                                                          |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `snapshot`                            | `{ status, messages, info, capabilities, error, paused, restored }`, one immutable object, replaced on change. |
-| `subscribe(listener)`                 | Bound, for `useSyncExternalStore(session.subscribe, …)`.                                                       |
-| `send(text \| { text, attachments })` | Mid-turn it steers where the harness can, and queues where it cannot.                                          |
-| `stop()`                              | Stops the turn. Queued messages come back as `snapshot.restored`, which the composer takes.                    |
-| `pause()`, `resume()`                 | Holds the gate.                                                                                                |
-| `respond(toolId, choice)`             | Answers an approval: `'allow-once'`, `'allow-session'`, `'deny'`.                                              |
-| `answer(questionId, answers \| null)` | Answers a question the agent asked.                                                                            |
-| `setModel(id)`, `setMode(id)`         | Where `capabilities.models` / `modes`.                                                                         |
-| `notify(level, text)`                 | A line in the transcript from the app.                                                                         |
-| `toMarkdown()`                        | The transcript, as Copy chat writes it.                                                                        |
-| `start()`, `close()`                  | The harness starts at the first `send` unless started; `useAgent` closes it on unmount.                        |
+| Member                                      | Notes                                                                                                          |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `snapshot`                                  | `{ status, messages, info, capabilities, error, paused, restored }`, one immutable object, replaced on change. |
+| `subscribe(listener)`                       | Bound, for `useSyncExternalStore(session.subscribe, …)`.                                                       |
+| `send(text \| { text, attachments, from })` | Mid-turn it steers where the harness can, and queues where it cannot. `from`: see below.                       |
+| `stop()`                                    | Stops the turn. Queued messages come back as `snapshot.restored`, which the composer takes.                    |
+| `pause()`, `resume()`                       | Holds the gate.                                                                                                |
+| `respond(toolId, choice)`                   | Answers an approval: `'allow-once'`, `'allow-session'`, `'deny'`.                                              |
+| `answer(questionId, answers \| null)`       | Answers a question the agent asked.                                                                            |
+| `setModel(id)`, `setMode(id)`               | Where `capabilities.models` / `modes`.                                                                         |
+| `notify(level, text)`                       | A line in the transcript from the app.                                                                         |
+| `toMarkdown()`                              | The transcript, as Copy chat writes it.                                                                        |
+| `start()`, `close()`                        | The harness starts at the first `send` unless started; `useAgent` closes it on unmount.                        |
 
 `status` is `'idle'`, `'starting'`, `'running'`, `'waiting'` (on the user),
 `'paused'`, `'unavailable'` (the harness cannot run here), `'error'` or
@@ -274,7 +274,7 @@ React (`@windowkit/agent-chat/core`). An `AgentSession`:
 
 ### Messages
 
-`messages` is `{ id, role, parts, done?, queued? }[]`. A part is one of:
+`messages` is `{ id, role, parts, from?, done?, queued? }[]`. A part is one of:
 
 - `text` and `reasoning`, with `streaming`;
 - `tool`: `name`, `label`, `kind`, `title`, `input`, `state` (`input-streaming`
@@ -286,6 +286,62 @@ React (`@windowkit/agent-chat/core`). An `AgentSession`:
 
 Parts are plain data. Approval is a state of the tool part, drawn on its
 card, never a dialog.
+
+### Messages from other sessions
+
+A user-role message the user did not write says who did, in `from`:
+
+- `{ kind: 'peer', id, name?, session? }`: another agent session, or a
+  process speaking as one. `id` addresses it, `name` is shown.
+- `{ kind: 'channel', server }`: an event pushed into the session from
+  outside, such as one of Claude Code's MCP channels.
+
+The chat draws such a message on the agent's side, framed and labelled
+`Writer · another session` or `ci · channel`, never in the user's bubble.
+Copy chat writes it as `**From Writer:**`.
+
+They arrive two ways. The harness may take one itself (a peer's
+`SendMessage`, a channel's event), and the driver reports it; a turn starts
+with it if none is running. Or the app sends one, by giving `send` a
+`from`:
+
+```ts
+reviewer.send({
+  text: draft,
+  from: { kind: 'peer', id: 'writer', name: 'Writer' },
+});
+```
+
+The harness is told it is not the user's. For Claude that means
+`origin: { kind: 'peer' }` and the text wrapped in Claude Code's own
+`<cross-session-message>` envelope, delivered as written, with no `@path`
+expansion and no slash commands (see [Drivers](drivers.md#claude)). A
+message without `from` is the user's, whether they typed it or the app sent
+it for them, and the driver says so too.
+
+Stop gives the user back only their own queued messages. A queued message
+from another session is not theirs to edit, so it goes with the turn.
+
+Watching one session and messaging another is the app's own code: the
+session is a store, so `subscribe` and compare statuses. This hands the
+writer's every finished reply to the reviewer:
+
+```ts
+let busy = false;
+writer.subscribe(() => {
+  const { status, messages } = writer.snapshot;
+  const last = messages.at(-1);
+  if (busy && status === 'idle' && last?.role === 'assistant') {
+    reviewer.send({
+      text: messageMarkdown(last),
+      from: { kind: 'peer', id: 'writer', name: 'Writer' },
+    });
+  }
+  busy = status === 'running' || status === 'waiting' || status === 'paused';
+});
+```
+
+`examples/peers.tsx` is that, in two panes side by side.
 
 ## Decisions
 
@@ -313,4 +369,5 @@ DEMO_AGENT=claude DEMO_CWD=~/scratch/demo npm run examples:demo   # the same app
 npm run examples:claude -- ~/src/my-project
 npm run examples:tools       # the app's tools and renderers
 npm run examples:intercept   # Run buttons, the gate, a replaced shell
+npm run examples:peers       # two sessions; the writer's replies go to the reviewer
 ```

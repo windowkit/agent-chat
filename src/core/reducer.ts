@@ -118,6 +118,8 @@ export function reduce(
         }
         return next;
       });
+    case 'message':
+      return incoming(messages, action, now);
     case 'plan':
       return action.parent
         ? inChildren(messages, action.parent, now, (kids) =>
@@ -200,7 +202,13 @@ function current(messages: Messages, now: number): [Messages, number] {
     parts: [],
     createdAt: now,
   };
-  // before any queued user messages, which wait for this turn to end
+  const at = beforeQueued(messages);
+  return [[...messages.slice(0, at), fresh, ...messages.slice(at)], at];
+}
+
+/** Where something the harness is acting on now goes: before any queued
+ *  user messages, which wait for the turn to end. */
+function beforeQueued(messages: Messages): number {
   let at = messages.length;
   while (
     at > 0 &&
@@ -209,7 +217,28 @@ function current(messages: Messages, now: number): [Messages, number] {
   ) {
     at--;
   }
-  return [[...messages.slice(0, at), fresh, ...messages.slice(at)], at];
+  return at;
+}
+
+/** A message from someone other than the user, which the harness took. A
+ *  driver that reports one twice is reporting the same message. */
+function incoming(
+  messages: Messages,
+  ev: Extract<DriverEvent, { type: 'message' }>,
+  now: number,
+): Messages {
+  if (messages.some((m) => m.id === ev.id)) return messages;
+  const message: AgentMessage = {
+    id: ev.id,
+    role: 'user',
+    parts: [
+      { type: 'text', id: `${ev.id}:t`, text: ev.text, streaming: false },
+    ],
+    createdAt: now,
+    from: ev.from,
+  };
+  const at = beforeQueued(messages);
+  return [...messages.slice(0, at), message, ...messages.slice(at)];
 }
 
 function appendPart(

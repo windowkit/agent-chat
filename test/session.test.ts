@@ -11,7 +11,7 @@ import { defineTool } from '../src/core/tools.js';
 import { fakeDriver, scripted } from '../src/testing/index.js';
 import { AgentUnavailableError } from '../src/core/driver.js';
 import type { ToolPart } from '../src/core/types.js';
-import { textOf, tool, until } from './helpers.js';
+import { heldTurn, textOf, tool, until } from './helpers.js';
 
 test('a reply streams into the transcript and the turn ends idle', async () => {
   const agent = fakeDriver(
@@ -215,23 +215,20 @@ test('allow for the session is remembered for that tool', async () => {
 });
 
 test('pause holds the next tool call at the gate until resume', async () => {
-  const session = createAgentSession({
-    agent: fakeDriver(
-      scripted([
-        { type: 'wait', ms: 5 },
-        {
-          type: 'call',
-          id: 'r',
-          name: 'Read',
-          kind: 'read',
-          input: {},
-          result: 'x',
-        },
-      ]),
-    ),
-  });
+  const turn = heldTurn([
+    {
+      type: 'call',
+      id: 'r',
+      name: 'Read',
+      kind: 'read',
+      input: {},
+      result: 'x',
+    },
+  ]);
+  const session = createAgentSession({ agent: fakeDriver(() => turn.steps) });
   session.send('go');
   session.pause();
+  turn.open();
   await until(
     () =>
       tool(session, 'r')?.state === 'awaiting-approval' ||
@@ -266,20 +263,23 @@ test('a message sent mid-turn queues, and stop gives it back to the composer', a
 });
 
 test('a queued message is sent when the turn ends', async () => {
-  const agent = fakeDriver(
-    scripted(
-      [
-        { type: 'wait', ms: 5 },
-        { type: 'say', text: 'one' },
-      ],
-      [{ type: 'say', text: 'two' }],
-    ),
+  const first = heldTurn([{ type: 'say', text: 'one' }]);
+  const agent = fakeDriver((_message, n) =>
+    n === 0 ? first.steps : [{ type: 'say', text: 'two' }],
   );
   const session = createAgentSession({ agent });
   session.send('first');
   session.send('second');
+  await until(() => agent.sent.length === 1, 'the first message');
+  assert.equal(
+    session.snapshot.messages.at(-1)!.queued,
+    true,
+    'the second waits for the first turn',
+  );
+  first.open();
   await until(
     () => agent.sent.length === 2 && session.snapshot.status === 'idle',
+    'the second turn',
   );
   assert.deepEqual(
     agent.sent.map((m) => m.text),

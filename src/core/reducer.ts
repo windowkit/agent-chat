@@ -347,6 +347,19 @@ function inChildren(
   );
 }
 
+/**
+ * A transcript saved from an earlier session, made ready to show again:
+ * whatever was queued was never sent and is dropped, and whatever was still
+ * open ends as a stopped turn does — a stream stops streaming, a tool call
+ * is cancelled, a question is closed. Nothing in it is live any more.
+ */
+export function restore(messages: Messages): Messages {
+  return closeTurn(
+    messages.filter((m) => !(m.role === 'user' && m.queued)),
+    true,
+  );
+}
+
 function closeTurn(messages: Messages, stopped: boolean): Messages {
   let changed = false;
   const out = messages.map((m) => {

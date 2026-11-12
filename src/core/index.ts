@@ -40,6 +40,7 @@ export {
 } from './tools.js';
 export {
   reduce,
+  restore,
   findLivePart,
   findPart,
   type TranscriptAction,

@@ -143,8 +143,11 @@ npm run examples:demo # DEMO_AGENT=claude for real Claude Code; see its header
 
 ## Pull requests and releases
 
-Conventional commits; release-please opens the release PR on `master`, and
+Conventional commits; release-please opens the release PR on `main`, and
 merging it publishes with npm trusted publishing (OIDC). The first publish of
-a package cannot go through trusted publishing and is done by hand once. PR
+a package cannot go through trusted publishing and is done by hand once:
+0.1.0 was, with the GitHub release `v0.1.0` made by hand to match, which is
+where release-please counts from. `bootstrap-sha` in its config is only for
+the time before that release existed, and does nothing once it does. PR
 screenshots are rendered by the PR's own code (`npm run screenshots`) and
 uploaded with `gh-attach`, not committed, unless they belong in the README.

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/windowkit/agent-chat/compare/v0.2.0...v0.3.0) (2026-11-12)
+
+
+### Features
+
+* fenced code drawn in @react-x11/components 0.44's fence look ([e98341b](https://github.com/windowkit/agent-chat/commit/e98341b72c55e78ecd2915d61b45f0aa7a6b0fd4))
+* fenced code is drawn as @react-x11/components 0.44 draws a fence ([3e66691](https://github.com/windowkit/agent-chat/commit/3e666913ca305dcf88698873b8404a8fd58b0c6a))
+
+
+### Bug Fixes
+
+* keep the transcript at the end when content grows after layout ([072da72](https://github.com/windowkit/agent-chat/commit/072da722e61b1e9451323019f2e1d89f88b5604b))
+* keep the transcript at the end when content grows after layout ([a8c7fe7](https://github.com/windowkit/agent-chat/commit/a8c7fe7ab7214dd3c9cc91d45df4f0617eeeb8f2))
+
 ## [0.2.0](https://github.com/windowkit/agent-chat/compare/v0.1.0...v0.2.0) (2026-11-12)
 
 

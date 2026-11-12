@@ -3,6 +3,7 @@
 
 import type { AgentSession, SessionSnapshot } from '../src/core/session.js';
 import type { Part, ToolPart } from '../src/core/types.js';
+import type { FakeStep } from '../src/testing/index.js';
 
 export async function until(
   check: () => boolean,
@@ -30,4 +31,25 @@ export function textOf(snap: SessionSnapshot): string {
     .filter((p) => p.type === 'text')
     .map((p) => (p as { text: string }).text)
     .join('|');
+}
+
+/**
+ * A turn the test lets go of: its steps play once `open()` is called. It
+ * stands in for a turn that takes a while, with no timer for `until` to race —
+ * a `wait` of a few milliseconds is over or not by the time `until` has spent
+ * its turns, depending on how fast the machine gets through them.
+ */
+export function heldTurn(steps: readonly FakeStep[]): {
+  steps: AsyncIterable<FakeStep>;
+  open: () => void;
+} {
+  let open!: () => void;
+  const opened = new Promise<void>((resolve) => (open = resolve));
+  return {
+    open,
+    steps: (async function* () {
+      await opened;
+      yield* steps;
+    })(),
+  };
 }

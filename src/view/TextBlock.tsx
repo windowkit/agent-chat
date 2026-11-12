@@ -7,6 +7,7 @@ import { Markdown } from '@react-x11/components/markdown';
 import type { AgentMessage } from '../core/types.js';
 import { CodeBlock } from './CodeBlock.js';
 import { useChat } from './context.js';
+import { useCodeLook } from './look.js';
 import { splitFences } from './fences.js';
 
 export interface TextBlockProps {
@@ -21,6 +22,8 @@ export const TextBlock = memo(function TextBlock({
   message,
 }: TextBlockProps): ReactElement {
   const { fences, components, onLink, fontSize } = useChat();
+  // segments alternate prose and fences: the gap is the space a fence keeps
+  const { spacing } = useCodeLook(fontSize);
   const segments = useMemo(
     () => splitFences(text, streaming),
     [text, streaming],
@@ -30,7 +33,7 @@ export const TextBlock = memo(function TextBlock({
     [onLink],
   );
   return (
-    <box style={{ flexDirection: 'column', gap: 8 }}>
+    <box style={{ flexDirection: 'column', gap: spacing }}>
       {segments.map((s, i) => {
         if (s.type === 'prose') {
           return (

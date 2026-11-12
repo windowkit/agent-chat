@@ -4,6 +4,10 @@
 import { useMemo } from 'react';
 import { useTheme } from 'react-x11';
 import { tint } from 'react-x11/style';
+import {
+  codeBlockLook,
+  type CodeBlockLook,
+} from '@react-x11/components/codeblock';
 
 export interface ChatLook {
   text: string;
@@ -38,6 +42,19 @@ export function useLook(): ChatLook {
       bubble: tint(text, 0.07),
     };
   }, [theme]);
+}
+
+/**
+ * What a block of code looks like here: what `<Markdown>` draws a fence
+ * with, at the chat's text size, so a fence the chat draws itself (to carry
+ * its actions) has the fill, radius, inset and spacing of one it does not.
+ */
+export function useCodeLook(fontSize: number | undefined): CodeBlockLook {
+  const theme = useTheme() as unknown as Record<string, unknown>;
+  return useMemo(
+    () => codeBlockLook(theme, fontSize ? { baseSize: fontSize } : {}),
+    [theme, fontSize],
+  );
 }
 
 /** At most `max` lines: the first and last halves, and how many were cut. */

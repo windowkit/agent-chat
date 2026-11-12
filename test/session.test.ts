@@ -454,3 +454,66 @@ test('a message the harness took from elsewhere is drawn as theirs, and runs a t
   assert.equal(textOf(session.snapshot), 'CI failed on main|on it');
   assert.equal(agent.sent.length, 0, 'it arrived; nothing was sent');
 });
+
+test('a saved transcript is shown again, settled, and the next turn follows it', async () => {
+  const first = createAgentSession({
+    agent: fakeDriver(scripted([{ type: 'say', text: 'Hello there' }])),
+  });
+  first.send('hi');
+  await until(
+    () =>
+      first.snapshot.status === 'idle' && first.snapshot.messages.length === 2,
+  );
+  const saved = JSON.parse(JSON.stringify(first.snapshot.messages));
+  // a turn cut off mid-stream, and a message that never left the queue
+  saved.push(
+    {
+      id: 'a9:x',
+      role: 'assistant',
+      createdAt: 0,
+      parts: [
+        { type: 'text', id: 'a9:t', text: 'Half', streaming: true },
+        {
+          type: 'tool',
+          id: 't9',
+          name: 'Grep',
+          label: 'Grep',
+          kind: 'search',
+          title: 'Grep',
+          input: {},
+          inputText: '{}',
+          state: 'running',
+          output: [],
+          app: false,
+        },
+      ],
+    },
+    {
+      id: 'u2',
+      role: 'user',
+      createdAt: 0,
+      queued: true,
+      parts: [{ type: 'text', id: 'u2:t', text: 'later', streaming: false }],
+    },
+  );
+
+  const agent = fakeDriver(scripted([{ type: 'say', text: 'Again' }]));
+  const session = createAgentSession({ agent, messages: saved });
+  const restored = session.snapshot.messages;
+  assert.equal(restored.length, 3);
+  assert.equal(session.snapshot.status, 'idle');
+  assert.ok(restored.every((m) => m.role === 'user' || m.done));
+  assert.equal(tool(session, 't9')!.state, 'cancelled');
+  assert.equal(textOf(session.snapshot), 'hi|Hello there|Half');
+
+  session.send('more');
+  await until(
+    () =>
+      session.snapshot.status === 'idle' &&
+      session.snapshot.messages.length === 5,
+  );
+  const ids = session.snapshot.messages.map((m) => m.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(textOf(session.snapshot), 'hi|Hello there|Half|more|Again');
+  assert.equal(agent.sent.length, 1);
+});

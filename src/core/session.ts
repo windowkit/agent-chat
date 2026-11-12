@@ -19,7 +19,12 @@ import {
 } from './driver.js';
 import { transcriptMarkdown } from './markdown.js';
 import { policyDecision } from './policy.js';
-import { reduce, findLivePart, type TranscriptAction } from './reducer.js';
+import {
+  reduce,
+  restore,
+  findLivePart,
+  type TranscriptAction,
+} from './reducer.js';
 import {
   errorResult,
   normalizeResult,
@@ -78,6 +83,13 @@ export interface AgentOptions {
   mode?: string;
   /** A harness session to resume, by its id. */
   resume?: string;
+  /**
+   * The transcript to start from: an earlier session's `snapshot.messages`,
+   * saved by the app. It is shown as it was, with anything left open
+   * settled as a stopped turn. The harness remembers the conversation only
+   * through `resume`, so pass its `info.id` beside it.
+   */
+  messages?: readonly AgentMessage[];
   /**
    * `'cli'` (default): the harness behaves as it does on the command line,
    * with the user's settings and project instructions (`CLAUDE.md`).
@@ -214,11 +226,18 @@ class Session implements AgentSession {
   constructor(options: AgentOptions) {
     this.#options = options;
     this.#config = resolveConfig(options);
+    const messages = restore(options.messages ?? []);
+    // the user's next message continues the saved ones' numbering, so its
+    // id is not one already in the transcript
+    for (const m of messages) {
+      const n = /^u(\d+)$/.exec(m.id);
+      if (n) this.#ids = Math.max(this.#ids, Number(n[1]));
+    }
     const driverName =
       typeof options.agent === 'object' ? options.agent.name : 'claude';
     this.#snapshot = Object.freeze({
       status: 'idle',
-      messages: [],
+      messages,
       info: {
         agent: driverName,
         cwd: this.#config.cwd,

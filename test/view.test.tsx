@@ -14,6 +14,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { useEffect, useState, type ReactElement } from 'react';
 import { z } from 'zod';
 import { renderX11, cleanup, screen, userEvent, act } from 'react-x11/test';
 
@@ -182,6 +183,89 @@ test("the app's fence renderer and a tool's own render draw what they are keyed 
   await userEvent.key(0xff0d); // Return
   assert.ok(await screen.findByText('Ticket ACME-1: Crash on start'));
   assert.ok(await screen.findByText('CHART {"bars":3}'));
+});
+
+/** A fence drawn small, then grown after mount, as a diagram compiled after
+ *  its first layout is: `grow()` lets it, once the turn has ended, so no
+ *  later snapshot change scrolls the pane for it. */
+const growers = new Set<() => void>();
+const grow = () => growers.forEach((g) => g());
+function Growing(): ReactElement {
+  const [height, setHeight] = useState(20);
+  useEffect(() => {
+    const g = () => setHeight(900);
+    growers.add(g);
+    return () => void growers.delete(g);
+  }, []);
+  return (
+    <box style={{ height }}>
+      <text>diagram</text>
+    </box>
+  );
+}
+
+type Scroller = {
+  abs: { y: number; height: number };
+  scrollY: number;
+  contentHeight: number;
+};
+
+/** A reply with a growing fence above a last line, in a short window. */
+async function growingReply(prompt: string) {
+  const session = createAgentSession({
+    agent: fakeDriver(
+      scripted([{ type: 'say', text: '```grow\nx\n```\n\n```tail\ny\n```\n' }]),
+    ),
+  });
+  await renderX11(
+    <AgentChat
+      session={session}
+      header={false}
+      fences={{
+        grow: { render: () => <Growing />, describe: 'a diagram' },
+        tail: { render: () => <text>LAST LINE</text>, describe: 'the end' },
+      }}
+    />,
+    { ...options, height: 300 },
+  );
+  await act(() => session.send(prompt));
+  await until(() => session.snapshot.status === 'idle', 'the turn to end');
+  const pane = (await screen.findByTestName(
+    'agent-chat-transcript',
+  )) as unknown as Scroller;
+  const last = (await screen.findByText('LAST LINE')) as unknown as Scroller;
+  const inView = () =>
+    last.abs.y >= pane.abs.y &&
+    last.abs.y + last.abs.height <= pane.abs.y + pane.abs.height;
+  await act();
+  assert.ok(inView(), 'in view before the fence grows');
+  const grown = async () => {
+    await act(grow);
+    await until(() => pane.contentHeight > 900, 'the fence to grow');
+    await act();
+  };
+  return { session, pane, inView, grown };
+}
+
+test('the transcript follows the end when a fence grows after it was laid out', async () => {
+  const { session, inView, grown } = await growingReply('draw it');
+  await grown();
+  await until(inView, 'the last line to be in view');
+  await session.close();
+});
+
+test('a reader who scrolled up stays where they are when a fence grows', async () => {
+  const { session, pane, inView, grown } = await growingReply(
+    Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n\n'),
+  );
+  await userEvent.wheel(pane as never, { deltaY: -2 });
+  await act();
+  const at = pane.scrollY;
+  assert.ok(!inView(), 'scrolled away from the end');
+  await grown();
+  for (let i = 0; i < 5; i++) await act();
+  assert.equal(pane.scrollY, at, 'not pulled back down');
+  await session.close();
 });
 
 test('a harness that cannot run shows the fallback', async () => {

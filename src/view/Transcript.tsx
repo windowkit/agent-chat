@@ -1,5 +1,8 @@
 // The scrolling transcript. It follows the newest message while the reader
-// is at the bottom, and stops following once they scroll up to read.
+// is at the bottom, and stops following once they scroll up to read. It
+// follows content that grows after it was laid out too: a fence the app
+// draws itself (a diagram compiled after mount) would otherwise push the end
+// of the reply out of view.
 
 import {
   useLayoutEffect,
@@ -30,6 +33,12 @@ export function Transcript({ empty }: { empty?: ReactNode }): ReactElement {
     if (stick.current) pane.current?.scrollTo(Infinity);
   }, [snap.messages, snap.status]);
 
+  // fires from layout whenever the content or viewport size changes, not
+  // only when the snapshot does
+  const onViewport = () => {
+    if (stick.current) pane.current?.scrollTo(Infinity);
+  };
+
   const onScroll = (ev: ScrollEvent) => {
     stick.current =
       ev.scrollY + ev.viewportHeight >= ev.contentHeight - STICK_PX;
@@ -40,6 +49,7 @@ export function Transcript({ empty }: { empty?: ReactNode }): ReactElement {
     <box
       ref={pane}
       onScroll={onScroll}
+      onViewport={onViewport}
       style={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'scroll' }}
       data-testname="agent-chat-transcript"
     >

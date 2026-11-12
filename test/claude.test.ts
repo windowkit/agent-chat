@@ -2,6 +2,10 @@
 // what a session's messages become. The fake plays the SDK's side of the
 // conversation — hooks, `canUseTool`, the in-process tool handler — in the
 // order Claude Code calls them.
+//
+// Every test starts its session before it waits on it. The driver's start
+// checks the working directory on disk, and may import a module: real I/O,
+// which `until`, counting event-loop turns, has no bound on.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -233,6 +237,7 @@ test('a replaced built-in is removed and aliased to the app tool', async () => {
 test('a streamed reply, then its finished block, is one text part', async () => {
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
   session.send('hi');
   await until(() => state.prompts.length === 1);
   assert.equal(state.prompts[0]!.message.content, 'hi');
@@ -278,6 +283,7 @@ test('a streamed reply, then its finished block, is one text part', async () => 
 test('a built-in tool asks, runs, and shows its result; an edit shows its diff', async () => {
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
   session.send('fix it');
   await until(() => state.prompts.length === 1);
   state.emit(
@@ -337,6 +343,7 @@ test('an app tool runs in this process, and the card gets what run returned', as
       }),
     },
   });
+  await session.start();
   session.send('open ACME-1');
   await until(() => state.prompts.length === 1);
   state.emit(
@@ -371,6 +378,7 @@ test('an app tool runs in this process, and the card gets what run returned', as
 test('AskUserQuestion is a question part, answered through canUseTool', async () => {
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
   session.send('help me choose');
   await until(() => state.prompts.length === 1);
   const input = {
@@ -413,6 +421,7 @@ test('AskUserQuestion is a question part, answered through canUseTool', async ()
 test('TodoWrite is the plan, and a subagent nests under its call', async () => {
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
   session.send('go');
   await until(() => state.prompts.length === 1);
   state.emit(
@@ -457,6 +466,7 @@ test('TodoWrite is the plan, and a subagent nests under its call', async () => {
 test('stop interrupts the query and the result it causes ends nothing new', async () => {
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
   session.send('long task');
   await until(() => state.prompts.length === 1);
   await session.stop();
@@ -483,6 +493,7 @@ test('stop interrupts the query and the result it causes ends nothing new', asyn
 test('a message sent mid-turn steers rather than queues', async () => {
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
   session.send('start');
   await until(() => state.prompts.length === 1);
   session.send('also check the docs');
@@ -502,11 +513,8 @@ test('a missing SDK makes the session unavailable, saying how to install it', as
     agent: claudeDriver({ module: '@anthropic-ai/claude-agent-sdk-not-here' }),
   });
   session.send('hi');
-  await until(
-    () =>
-      session.snapshot.status !== 'starting' &&
-      session.snapshot.status !== 'running',
-  );
+  // the start the send began, which a missing package fails
+  await session.start();
   assert.equal(session.snapshot.status, 'unavailable');
   assert.match(
     session.snapshot.error!,
@@ -536,7 +544,8 @@ test('a working directory that does not exist is said as such, before Claude Cod
     cwd: missing,
   });
   session.send('hi');
-  await until(() => session.snapshot.status === 'unavailable');
+  await session.start();
+  assert.equal(session.snapshot.status, 'unavailable');
   assert.match(
     session.snapshot.error!,
     /does not exist: .*agent-chat-no-such-dir\/demo/,
@@ -558,6 +567,7 @@ test('driverOptions.thinking replaces the default', async () => {
 test("the user's message says it is theirs; one for another session is wrapped as that session's", async () => {
   const { sdk, state } = fakeSdk();
   const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
   session.send('hi');
   await until(() => state.prompts.length === 1);
   const mine = state.prompts[0] as unknown as Record<string, unknown>;

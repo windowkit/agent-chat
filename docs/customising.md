@@ -24,15 +24,15 @@ is.
 
 ### Chrome: whole-part replacements and options
 
-| Seam                       | What it does                                                                                                                                    |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `header`                   | `false`, or `(session) => ReactNode` to replace the whole header. Its pieces, the model and mode selects, cost and Copy chat, are not exported. |
-| `empty`                    | What the transcript shows before the first message.                                                                                             |
-| `fallback`                 | Drawn instead of the chat when the agent is unavailable. The error banner drawn above a running chat is fixed.                                  |
-| `composer`                 | `markup`, `files` (the `@` list), `commands` (the `/` list), `pasteAsAttachment`. No suggesters of the app's own, no buttons, no key bindings.  |
-| `placeholder`, `autoFocus` | As named.                                                                                                                                       |
-| `fontSize`                 | Reaches the markdown prose **only**: code blocks, tool cards, the header, the composer and every label keep their own sizes.                    |
-| `style`                    | The root box.                                                                                                                                   |
+| Seam                       | What it does                                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `header`                   | `false`, or `(session) => ReactNode` to replace the whole header. Its pieces, the model and mode selects, cost and Copy chat, are not exported.                       |
+| `empty`                    | What the transcript shows before the first message.                                                                                                                   |
+| `fallback`                 | Drawn instead of the chat when the agent is unavailable. The error banner drawn above a running chat is fixed.                                                        |
+| `composer`                 | `markup`, `files` (the `@` list), `commands` (the `/` list), `pasteAsAttachment`, `attach` (the "+" menu's sources). No suggesters of the app's own, no key bindings. |
+| `placeholder`, `autoFocus` | As named.                                                                                                                                                             |
+| `fontSize`                 | Reaches the markdown prose **only**: code blocks, tool cards, the header, the composer and every label keep their own sizes.                                          |
+| `style`                    | The root box.                                                                                                                                                         |
 
 ### Look: the react-x11 theme
 
@@ -94,16 +94,20 @@ Parts of the chat no seam reaches:
 11. **The transcript**: padding, gaps, the activity line's wording, no
     jump-to-bottom control.
 12. **The error banner** over a running chat.
-13. **The composer's layout**: the button set and labels, the editor's
-    radius and height, the suggestion sources, key bindings.
-14. **The header's pieces**, reusable only by replacing the whole header.
-15. **Every spacing, radius and small type size**, and `fontSize` reaching
+13. **The composer's layout**: the button set (attach, send, stop,
+    pause), the field's radius and height, the suggestion sources, key
+    bindings. The attach menu's entries are the app's (`attach`); its
+    button and popup are not.
+14. **A message's action row**: Copy and the time, shown after a 150 ms
+    hover; no actions of the app's own there.
+15. **The header's pieces**, reusable only by replacing the whole header.
+16. **Every spacing, radius and small type size**, and `fontSize` reaching
     only prose.
-16. **`data` parts**: the four the Claude driver writes are drawn as cards
+17. **`data` parts**: the four the Claude driver writes are drawn as cards
     (`PullRequestCard`, `SessionCard`, `ArtifactCard`, `AttachmentCard`);
     any other as nothing, and no seam to draw them. The suggested-reply
     chips (`SuggestedReplies`) have none either.
-17. **Copy and export formats** (`messageMarkdown`, `transcriptMarkdown`): a
+18. **Copy and export formats** (`messageMarkdown`, `transcriptMarkdown`): a
     tool call exports as one line.
 
 ## How to provide it
@@ -226,13 +230,13 @@ That is the same promise as a `Default` in `parts`, one level up.
 
 ### Order of work
 
-1. `look`, and every literal in `src/view/` read from it: the most visible
-   improvement for the least API.
-2. Export the parts, `useChat` and `useLook`.
-3. `parts`, with `Default`; `styles`.
-4. `renderTool` by kind and output type; `renderData`; `messageActions`;
-   `approvalOptions`.
-5. The Claude driver keeping what it drops today (see the catalogue).
+19. `look`, and every literal in `src/view/` read from it: the most visible
+    improvement for the least API.
+20. Export the parts, `useChat` and `useLook`.
+21. `parts`, with `Default`; `styles`.
+22. `renderTool` by kind and output type; `renderData`; `messageActions`;
+    `approvalOptions`.
+23. The Claude driver keeping what it drops today (see the catalogue).
 
 Each step adds API and removes none, so the simple case stays one line:
 `<AgentChat cwd={dir} />`.

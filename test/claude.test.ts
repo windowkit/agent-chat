@@ -38,6 +38,11 @@ function fakeSdk() {
     prompts: [] as Array<{ message: { content: unknown }; priority?: string }>,
     tools: [] as FakeTool[],
     interrupted: 0,
+    renamed: [] as Array<[string, string | undefined]>,
+    /** What `getSessionInfo` reads from disk. */
+    saved: undefined as
+      | { summary?: string; customTitle?: string; firstPrompt?: string }
+      | undefined,
     emit(m: SdkMessage) {
       out.push(m);
       wake?.();
@@ -77,6 +82,7 @@ function fakeSdk() {
       return t;
     },
     createSdkMcpServer: (o) => ({ type: 'sdk', name: o.name, tools: o.tools }),
+    getSessionInfo: async () => state.saved,
     query({ prompt, options }) {
       state.options = options ?? {};
       void (async () => {
@@ -99,6 +105,9 @@ function fakeSdk() {
         },
         async supportedModels() {
           return [{ value: 'opus', displayName: 'Opus' }];
+        },
+        async renameSession(title: string, sessionId?: string) {
+          state.renamed.push([title, sessionId]);
         },
         close() {
           state.end();
@@ -977,5 +986,58 @@ test('a suggested reply is offered after the turn, and sending drops it', async 
   assert.deepEqual(session.snapshot.suggestions, ['Run the tests']);
   session.send('Run the tests');
   assert.deepEqual(session.snapshot.suggestions, []);
+  await session.close();
+});
+
+test("the session's name: the app's, the hook's, the saved session's, and a rename", async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({
+    agent: claudeDriver({ sdk }),
+    title: 'From the app',
+  });
+  await session.start();
+  assert.equal(state.options!.title, 'From the app');
+  state.emit({
+    type: 'system',
+    subtype: 'init',
+    session_id: 's1',
+  } as SdkMessage);
+
+  // Claude Code tells the prompt hook what the session is called
+  const hooks = state.options!.hooks as {
+    UserPromptSubmit: Array<{ hooks: Function[] }>;
+  };
+  await hooks.UserPromptSubmit[0]!.hooks[0]!({
+    hook_event_name: 'UserPromptSubmit',
+    prompt: 'hi',
+    session_title: 'Named by Claude',
+  });
+  assert.equal(session.snapshot.info.title, 'Named by Claude');
+
+  // after a turn, the saved session; a summary that is the first prompt is
+  // not a name
+  session.send('fix the flaky test please');
+  await until(() => state.prompts.length === 1);
+  state.saved = {
+    summary: 'fix the flaky test please',
+    firstPrompt: 'fix the flaky test please',
+  };
+  state.emit(success);
+  await until(() => session.snapshot.status === 'idle');
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(session.snapshot.info.title, 'Named by Claude');
+
+  session.send('again');
+  await until(() => state.prompts.length === 2);
+  state.saved = { summary: 'Renamed', customTitle: 'Renamed' };
+  state.emit(success);
+  await until(
+    () => session.snapshot.info.title === 'Renamed',
+    '/rename, read from the saved session',
+  );
+
+  await session.rename('Mine');
+  assert.deepEqual(state.renamed, [['Mine', 's1']]);
+  assert.equal(session.snapshot.info.title, 'Mine');
   await session.close();
 });

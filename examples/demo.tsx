@@ -15,6 +15,11 @@
 // Claude Code's: `ANTHROPIC_API_KEY`, or what it is already configured with.
 // `CLAUDE_PATH` runs the `claude` you have installed rather than the SDK's
 // own copy; SDK 0.3.N ships Claude Code 2.1.N, so keep the two in step.
+//
+// "+" in the message box attaches files and images (`composer.attach`; the
+// demo agent says it takes images, so they are offered). The session's name
+// — Claude Code's, or the demo agent's after the first message — is the
+// window's title (`onTitleChange`).
 
 import { mkdirSync } from 'node:fs';
 import { useState, type ReactElement } from 'react';
@@ -23,11 +28,17 @@ import { z } from 'zod';
 
 import {
   AgentChat,
+  attachFiles,
+  attachImages,
   copyCode,
   defineTool,
   type CodeAction,
 } from '../src/index.js';
-import { fakeDriver, type FakeStep } from '../src/testing/index.js';
+import {
+  fakeDriver,
+  type FakeScript,
+  type FakeStep,
+} from '../src/testing/index.js';
 
 const CLAUDE = process.env.DEMO_AGENT === 'claude';
 const CWD = expandHome(process.env.DEMO_CWD) ?? process.cwd();
@@ -44,7 +55,40 @@ const AGENT = CLAUDE
         ? { driverOptions: { pathToClaudeCodeExecutable: CLAUDE_PATH } }
         : {}),
     }
-  : { agent: fakeDriver(() => REPLY, { name: 'demo agent' }) };
+  : {
+      agent: fakeDriver(demoScript, {
+        name: 'demo agent',
+        // so "+" offers images: an agent that cannot see them is not offered
+        // them
+        capabilities: { images: true },
+      }),
+    };
+
+/** The scripted reply, after a line on what was attached, and a name for
+ *  the session on the first message, as Claude Code gives one. */
+function demoScript(
+  message: Parameters<FakeScript>[0],
+  turn: number,
+): FakeStep[] {
+  const steps: FakeStep[] = [];
+  if (turn === 0) {
+    const name = message.text.replace(/\[[^\]]*\]/g, '').trim();
+    steps.push({
+      type: 'info',
+      info: { title: name ? name.slice(0, 40) : 'Attachments' },
+    });
+  }
+  const images = message.attachments.filter((a) => a.kind === 'image');
+  const files = message.attachments.filter((a) => a.kind === 'file');
+  if (images.length || files.length) {
+    const seen = [
+      ...images.map((a) => `the image **${a.label}**`),
+      ...files.map((a) => `\`${a.path}\``),
+    ];
+    steps.push({ type: 'say', text: `I got ${seen.join(', ')}.\n\n` });
+  }
+  return [...steps, ...REPLY];
+}
 
 function expandHome(path: string | undefined): string | undefined {
   if (!path) return undefined;
@@ -100,6 +144,7 @@ const REPLY: FakeStep[] = [
 
 function App(): ReactElement {
   const [log, setLog] = useState<string[]>([]);
+  const [name, setName] = useState<string | null>(null);
 
   const openTicket = defineTool({
     description: 'Open a ticket in the tracker.',
@@ -129,12 +174,17 @@ function App(): ReactElement {
     <window
       width={760}
       height={720}
-      title={CLAUDE ? `Agent chat — Claude in ${CWD}` : 'Agent chat — demo'}
+      title={
+        name ?? (CLAUDE ? `Agent chat — Claude in ${CWD}` : 'Agent chat — demo')
+      }
     >
       <box style={{ flexDirection: 'column', flexGrow: 1 }}>
         <AgentChat
           {...AGENT}
           tools={{ openTicket }}
+          // the default, written out: the seam for an app's own sources
+          composer={{ attach: [attachImages, attachFiles] }}
+          onTitleChange={setName}
           codeActions={[copyCode, run]}
           fences={{
             chart: {

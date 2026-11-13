@@ -8,6 +8,7 @@
 // `session`) with the same options, moved rather than rewritten.
 
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -65,6 +66,11 @@ export interface AgentChatViewProps {
   /** `true` for the session's line (agent, model, mode, cost, Copy), or a
    *  function of the session for the app's own. Default `true`. */
   header?: boolean | ((session: AgentSession) => ReactNode);
+  /** The session's name changed: the app's `title`, a `rename`, or the
+   *  harness naming it (Claude Code names a session after its first prompt,
+   *  and `/rename` renames it). For a window title, a tab, a list of
+   *  sessions. Also `snapshot.info.title`. */
+  onTitleChange?: (title: string) => void;
   /** Shown while the transcript is empty. */
   empty?: ReactNode;
   /** Shown instead of the chat when the harness cannot run here. Default: a
@@ -134,6 +140,15 @@ function ChatView({
   const { fences, components, renderTool, codeActions, onLink, fontSize } =
     view;
   const [composer] = useState(composerChannel);
+
+  // the latest callback, called once per name: an inline arrow is the
+  // usual one, and a new arrow is not a new name
+  const onTitle = useRef(view.onTitleChange);
+  onTitle.current = view.onTitleChange;
+  const title = snap.info.title;
+  useEffect(() => {
+    if (title) onTitle.current?.(title);
+  }, [title]);
   const context = useMemo<ChatContextValue>(
     () => ({
       session,

@@ -13,6 +13,18 @@ export {
 export { useAgent, useSessionSnapshot } from './view/use-agent.js';
 export type { ComposerOptions } from './view/Composer.js';
 export {
+  attachFiles,
+  attachImages,
+  imageAttachment,
+  isImagePath,
+  DEFAULT_ATTACH,
+  MAX_IMAGE_BYTES,
+  type AttachContext,
+  type AttachSource,
+} from './view/attach.js';
+export type { ChatIcon, GlyphName } from './view/icons.js';
+export { HOVER_DELAY } from './view/hover.js';
+export {
   copyCode,
   defineTool,
   type CodeAction,

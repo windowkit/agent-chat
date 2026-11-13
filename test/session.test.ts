@@ -517,3 +517,40 @@ test('a saved transcript is shown again, settled, and the next turn follows it',
   assert.equal(textOf(session.snapshot), 'hi|Hello there|Half|more|Again');
   assert.equal(agent.sent.length, 1);
 });
+
+test("the session's name: the app's title, the harness's, and a rename", async () => {
+  const agent = fakeDriver(
+    scripted([{ type: 'info', info: { title: 'Flaky test' } }]),
+  );
+  const session = createAgentSession({ agent, title: '  Draft  ' });
+  assert.equal(session.snapshot.info.title, 'Draft', 'before it starts');
+  session.send('hi');
+  await until(() => session.snapshot.status === 'idle');
+  assert.equal(
+    session.snapshot.info.title,
+    'Flaky test',
+    'the harness named it',
+  );
+  await session.rename('Composer bug');
+  assert.equal(session.snapshot.info.title, 'Composer bug');
+  await session.rename('   ');
+  assert.equal(session.snapshot.info.title, 'Composer bug', 'blank is ignored');
+  await session.close();
+});
+
+test('a rename before the harness starts is the name it starts with', async () => {
+  let started: string | undefined;
+  const fake = fakeDriver(scripted([]));
+  const agent = {
+    name: 'fake',
+    start: (host: Parameters<typeof fake.start>[0]) => {
+      started = host.config.title;
+      return fake.start(host);
+    },
+  };
+  const session = createAgentSession({ agent });
+  await session.rename('Named early');
+  await session.start();
+  assert.equal(started, 'Named early');
+  await session.close();
+});

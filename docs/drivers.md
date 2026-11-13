@@ -153,5 +153,10 @@ What the host offers:
 | `ask(id, questions, signal?)` | A question form. `null` if dismissed.                                                                  |
 | `runTool(name, input, ctx)`   | One of the app's tools. Never throws: a failure is a result.                                           |
 
+A session's name is an `info` event: `{ type: 'info', info: { title } }`,
+whenever the harness names or renames it. `config.title` is the name the app
+started it with, and `DriverSession.rename?(title)` tells the harness of a
+`session.rename`; without it the name stays the app's.
+
 `fakeDriver` in `src/testing/fake.ts` is the smallest complete driver, and
 `test/claude.test.ts` shows how to test one against a fake of its far side.

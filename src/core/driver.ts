@@ -150,6 +150,9 @@ export interface DriverConfig {
   permissions: PermissionPolicy;
   model?: string;
   mode?: string;
+  /** What to call the session: the app's `title`, or a `rename` made before
+   *  the harness started. */
+  title?: string;
   /** A harness session id to resume. */
   resume?: string;
   settings: 'cli' | 'isolated';
@@ -175,6 +178,9 @@ export interface DriverSession {
   interrupt(): Promise<void>;
   setModel?(id: string): Promise<void>;
   setMode?(id: string): Promise<void>;
+  /** Name the session in the harness, where it keeps one. The session has
+   *  already shown the name; a driver without this keeps it to the app. */
+  rename?(title: string): Promise<void>;
   close(): Promise<void>;
 }
 

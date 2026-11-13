@@ -81,6 +81,9 @@ export interface AgentOptions {
   onToolCall?: (call: ToolCall) => ToolDecision | Promise<ToolDecision>;
   model?: string;
   mode?: string;
+  /** What the session is called, until a `rename` or the harness says
+   *  otherwise: `snapshot.info.title`. */
+  title?: string;
   /** A harness session to resume, by its id. */
   resume?: string;
   /**
@@ -142,6 +145,12 @@ export interface AgentSession {
   answer(questionId: string, answers: Record<string, string> | null): void;
   setModel(id: string): Promise<void>;
   setMode(id: string): Promise<void>;
+  /**
+   * Call the session `title`: shown at once as `snapshot.info.title`, and
+   * kept by the harness where it keeps names (Claude Code's `/rename`).
+   * Blank is ignored.
+   */
+  rename(title: string): Promise<void>;
   /** A line in the transcript from the app: an action's result, a failure. */
   notify(level: 'info' | 'warning' | 'error', text: string): void;
   /** The transcript as markdown, for Copy. */
@@ -244,6 +253,7 @@ class Session implements AgentSession {
       info: {
         agent: driverName,
         cwd: this.#config.cwd,
+        ...(this.#config.title ? { title: this.#config.title } : {}),
         models: [],
         modes: [],
         commands: [],
@@ -586,6 +596,18 @@ class Session implements AgentSession {
     this.#set({ info: { ...this.#snapshot.info, mode: id } });
   }
 
+  async rename(title: string): Promise<void> {
+    const name = title.trim();
+    if (!name) return;
+    this.#set({ info: { ...this.#snapshot.info, title: name } });
+    // a harness starting now has read its config already: it is told
+    // once it is up
+    const driver =
+      this.#driver ?? (this.#starting ? await this.#starting : null);
+    if (driver) await driver.rename?.(name);
+    else this.#config.title = name;
+  }
+
   notify(level: 'info' | 'warning' | 'error', text: string): void {
     // a notice goes in the turn under way, or in a message of its own
     if (!this.#turn) {
@@ -826,6 +848,7 @@ function resolveConfig(options: AgentOptions): DriverConfig {
     permissions: options.permissions ?? 'ask',
     ...(options.model ? { model: options.model } : {}),
     ...(options.mode ? { mode: options.mode } : {}),
+    ...(options.title?.trim() ? { title: options.title.trim() } : {}),
     ...(options.resume ? { resume: options.resume } : {}),
     settings: options.settings ?? 'cli',
     driverOptions: options.driverOptions ?? {},

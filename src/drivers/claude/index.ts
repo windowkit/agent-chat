@@ -213,6 +213,39 @@ async function startClaude(
     return hookOutput(decision);
   };
 
+  // --- the session's name ---------------------------------------------------
+  // Claude Code names a session after its first prompt, in the background,
+  // and `/rename` renames it; neither is a message on the stream. The name
+  // is read where it can be: on each prompt (the `UserPromptSubmit` hook is
+  // told it) and from the saved session once a turn is over.
+  let sessionId: string | undefined;
+  let title = config.title;
+  const named = (next: string | undefined) => {
+    const name = next?.trim();
+    if (!name || name === title) return;
+    title = name;
+    host.emit({ type: 'info', info: { title: name } });
+  };
+  const promptSubmit = async (hookInput: unknown) => {
+    const t = (hookInput as { session_title?: unknown }).session_title;
+    if (typeof t === 'string') named(t);
+    return {};
+  };
+  const readTitle = async () => {
+    if (!sessionId || !sdk.getSessionInfo) return;
+    try {
+      const info = await sdk.getSessionInfo(sessionId, { dir: config.cwd });
+      if (!info) return;
+      // the summary falls back to the first prompt, which is not a name
+      named(
+        info.customTitle ??
+          (info.summary !== info.firstPrompt ? info.summary : undefined),
+      );
+    } catch {
+      // a session not saved here (another machine, `persistSession: false`)
+    }
+  };
+
   const canUseTool = async (
     toolName: string,
     toolInput: Record<string, unknown>,
@@ -279,7 +312,10 @@ async function startClaude(
     // a reply the user might send next, after each turn: drawn as a chip
     // that fills the composer
     promptSuggestions: true,
-    hooks: { PreToolUse: [{ hooks: [preToolUse] }] },
+    hooks: {
+      PreToolUse: [{ hooks: [preToolUse] }],
+      UserPromptSubmit: [{ hooks: [promptSubmit] }],
+    },
     canUseTool,
     env: {
       ...process.env,
@@ -300,6 +336,7 @@ async function startClaude(
     };
   }
   if (config.model) options.model = config.model;
+  if (config.title) options.title = config.title;
   if (config.resume) options.resume = config.resume;
   Object.assign(options, config.driverOptions);
 
@@ -363,6 +400,7 @@ async function startClaude(
 
   const onSystem = (m: SdkMessage) => {
     if (m.subtype === 'init') {
+      if (typeof m.session_id === 'string') sessionId = m.session_id;
       host.emit({
         type: 'info',
         info: {
@@ -619,6 +657,7 @@ async function startClaude(
       },
     });
     inTurn = false;
+    void readTitle();
     if (swallow > 0) {
       swallow--;
       return;
@@ -699,6 +738,13 @@ async function startClaude(
     },
     async setMode(id: string) {
       await query.setPermissionMode?.(id);
+    },
+    async rename(name: string) {
+      title = name;
+      if (query.renameSession) await query.renameSession(name, sessionId);
+      else if (sessionId && sdk.renameSession) {
+        await sdk.renameSession(sessionId, name, { dir: config.cwd });
+      }
     },
     async close() {
       input.end();

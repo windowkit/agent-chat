@@ -15,16 +15,32 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { useEffect, useState, type ReactElement } from 'react';
+import { PNG } from 'pngjs';
 import { z } from 'zod';
-import { renderX11, cleanup, screen, userEvent, act } from 'react-x11/test';
+import {
+  renderX11,
+  cleanup,
+  screen,
+  userEvent,
+  act,
+  roleOf,
+  textOf,
+  waitFor,
+  within,
+} from 'react-x11/test';
 
 import {
   AgentChat,
+  attachFiles,
+  attachImages,
   copyCode,
   createAgentSession,
   defineTool,
+  type AttachSource,
+  type Attachment,
   type CodeAction,
 } from '../src/index.js';
+import { HOVER_DELAY } from '../src/view/hover.js';
 import { AgentUnavailableError } from '../src/core/driver.js';
 import { fakeDriver, scripted } from '../src/testing/index.js';
 import { tool, until } from './helpers.js';
@@ -416,4 +432,307 @@ test("a message from another session is drawn as theirs: named, on the agent's s
   const x = (label as unknown as { abs: { x: number } }).abs.x;
   assert.ok(x < options.width / 4, `on the left, not the user's side: ${x}`);
   await session.close();
+});
+
+test('Send is a ghost icon inside the field, and sends what was typed', async () => {
+  const agent = fakeDriver(scripted([{ type: 'say', text: 'ok' }]));
+  const session = createAgentSession({ agent });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  const field = await screen.findByTestName('agent-chat-field');
+  const composer = await screen.findByTestName('agent-chat-composer');
+  await userEvent.type(composer, 'hello');
+  const send = await iconButton('Send');
+  assert.ok(within(field).all((n) => n === send).length, 'inside the border');
+  await userEvent.click(send);
+  await until(() => agent.sent.length === 1, 'the message');
+  assert.equal(agent.sent[0]!.text, 'hello');
+  await session.close();
+});
+
+test('"+" offers the sources that work here, and what one picks is sent with the text', async () => {
+  const agent = fakeDriver(scripted([{ type: 'say', text: 'ok' }]));
+  const session = createAgentSession({ agent });
+  const shot: Attachment = {
+    kind: 'image',
+    label: 'canvas.png',
+    mime: 'image/png',
+    data: 'iVBORw0KGgo=',
+  };
+  const canvas: AttachSource = {
+    id: 'canvas',
+    label: 'Screenshot of the canvas',
+    icon: 'image',
+    pick: () => [shot],
+  };
+  await renderX11(
+    <AgentChat
+      session={session}
+      header={false}
+      composer={{ attach: [attachImages, canvas] }}
+    />,
+    options,
+  );
+  await session.start();
+  await userEvent.click(await iconButton('Attach'));
+  await screen.findByRole('menuitem', { name: 'Screenshot of the canvas' });
+  assert.equal(
+    screen.queryByRole('menuitem', { name: 'Images…' }),
+    null,
+    'no images for an agent that does not take them',
+  );
+  await userEvent.click(
+    screen.getByRole('menuitem', { name: 'Screenshot of the canvas' }),
+  );
+  // a tile above the text, not a token in it
+  const tile = await screen.findByTestName('agent-chat-attachment');
+  assert.equal(labelOf(tile), 'canvas.png');
+  const composer = await screen.findByTestName('agent-chat-composer');
+  await userEvent.type(composer, 'what is this?', { skipClick: true });
+  await userEvent.key(RETURN);
+  await until(() => agent.sent.length === 1, 'the message');
+  assert.deepEqual(agent.sent[0]!.attachments, [shot]);
+  assert.equal(agent.sent[0]!.text, 'what is this?');
+  await waitFor(() =>
+    assert.equal(screen.queryByTestName('agent-chat-attachment'), null),
+  );
+  await session.close();
+});
+
+test('a tile in the tray can be removed before sending', async () => {
+  const agent = fakeDriver(scripted([{ type: 'say', text: 'ok' }]));
+  const session = createAgentSession({ agent });
+  const note: AttachSource = {
+    id: 'note',
+    label: 'Notes',
+    pick: () => [{ kind: 'file', label: 'notes.md', path: '/tmp/notes.md' }],
+  };
+  await renderX11(
+    <AgentChat
+      session={session}
+      header={false}
+      composer={{ attach: [note] }}
+    />,
+    options,
+  );
+  await userEvent.click(await iconButton('Attach'));
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Notes' }));
+  const tile = await screen.findByTestName('agent-chat-attachment');
+  await userEvent.hover(tile);
+  const remove = await waitFor(() => {
+    const [n] = within(tile).all((n) => labelOf(n) === 'Remove notes.md');
+    assert.ok(n);
+    return n;
+  });
+  await userEvent.click(remove);
+  await waitFor(() =>
+    assert.equal(screen.queryByTestName('agent-chat-attachment'), null),
+  );
+  await session.close();
+});
+
+test("a message's actions show once the pointer has rested on it", async () => {
+  const session = createAgentSession({
+    agent: fakeDriver(scripted([{ type: 'say', text: 'Hello' }])),
+  });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  await act(() => session.send('hi'));
+  await until(() => session.snapshot.status === 'idle', 'the turn to end');
+  await act();
+  const reply = await waitFor(() => {
+    const [node] = screen.all(
+      (n) => n.kind === 'richtext' && richTextOf(n) === 'Hello',
+    );
+    assert.ok(node);
+    return node;
+  });
+  // the reply's row: the last message's
+  const row = () => screen.getAllByTestName('agent-chat-actions').at(-1)!;
+  const shown = () =>
+    (row() as unknown as { props: { style: { visibility: string } } }).props
+      .style.visibility === 'visible';
+  const place = () => {
+    const { x, y, width, height } = (row() as unknown as { abs: Rect }).abs;
+    return { x, y, width, height };
+  };
+  assert.equal(shown(), false, 'hidden before a hover');
+  assert.ok(
+    within(row()).all((n) => labelOf(n) === 'Copy').length,
+    'laid out while hidden',
+  );
+  const before = place();
+  const at = Date.now();
+  await userEvent.hover(reply);
+  // passing over is not resting: nothing yet, unless this machine took the
+  // whole delay to get here
+  if (Date.now() - at < HOVER_DELAY) assert.equal(shown(), false);
+  await waitFor(() => assert.equal(shown(), true), { timeout: 3000 });
+  assert.deepEqual(place(), before, 'showing it moves nothing');
+  await userEvent.unhover(reply);
+  await waitFor(() => assert.equal(shown(), false));
+  await session.close();
+});
+
+test('the header names the session, and the app hears each new name', async () => {
+  const session = createAgentSession({
+    agent: fakeDriver(scripted([])),
+    title: 'Draft',
+  });
+  const names: string[] = [];
+  await renderX11(
+    <AgentChat session={session} onTitleChange={(t) => names.push(t)} />,
+    options,
+  );
+  const title = await screen.findByTestName('agent-chat-title');
+  assert.equal(textOf(title), 'Draft');
+  await act(() => session.rename('The flaky test'));
+  await waitFor(() =>
+    assert.equal(
+      textOf(screen.getByTestName('agent-chat-title')),
+      'The flaky test',
+    ),
+  );
+  assert.deepEqual(names, ['Draft', 'The flaky test']);
+  await session.close();
+});
+
+function richTextOf(n: unknown): string {
+  return ((n as { props: { runs?: Array<{ text: string }> } }).props.runs ?? [])
+    .map((r) => r.text)
+    .join('');
+}
+
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function labelOf(n: unknown): unknown {
+  return (n as { props: Record<string, unknown> }).props['aria-label'];
+}
+
+/** An icon button, by the name it is read out by: it has no text. */
+function iconButton(label: string) {
+  return waitFor(() => {
+    const [node] = screen.all(
+      (n) => roleOf(n) === 'button' && labelOf(n) === label,
+    );
+    assert.ok(node, `a button named ${label}`);
+    return node;
+  });
+}
+
+test('a pasted image leaves the text for the tray, and is sent as itself', async () => {
+  const agent = fakeDriver(scripted([{ type: 'say', text: 'ok' }]));
+  const session = createAgentSession({ agent });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  const composer = await screen.findByTestName('agent-chat-composer');
+  await userEvent.type(composer, 'look');
+  // what a paste of a screenshot puts in the document: an image atom
+  const view = (composer as unknown as { props: { host: EditorViewLike } })
+    .props.host;
+  const dot = new PNG({ width: 1, height: 1 });
+  const png = new Uint8Array(PNG.sync.write(dot));
+  const atom = view.state.schema.nodes.attachment!.create({
+    kind: 'image',
+    id: null,
+    label: 'Image #1',
+    data: png,
+  });
+  await act(() => view.dispatch(view.state.tr.replaceSelectionWith(atom)));
+  const tile = await screen.findByTestName('agent-chat-attachment');
+  assert.equal(labelOf(tile), 'Image #1');
+  await userEvent.key(RETURN);
+  await until(() => agent.sent.length === 1, 'the message');
+  assert.equal(agent.sent[0]!.text, 'look', 'no token left in the text');
+  assert.deepEqual(agent.sent[0]!.attachments, [
+    {
+      kind: 'image',
+      label: 'Image #1',
+      mime: 'image/png',
+      data: Buffer.from(png).toString('base64'),
+    },
+  ]);
+  await session.close();
+});
+
+interface EditorViewLike {
+  state: {
+    schema: { nodes: Record<string, { create(attrs: object): unknown }> };
+    tr: { replaceSelectionWith(node: unknown): unknown };
+  };
+  dispatch(tr: unknown): void;
+}
+
+test('"+" opened before the first message offers images once the agent says it takes them', async () => {
+  const session = createAgentSession({
+    agent: fakeDriver(scripted([]), { capabilities: { images: true } }),
+  });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  assert.equal(session.snapshot.capabilities.images, false, 'not started yet');
+  await userEvent.click(await iconButton('Attach'));
+  await screen.findByRole('menuitem', { name: 'Images…' });
+  await screen.findByRole('menuitem', { name: 'Files…' });
+  await session.close();
+});
+
+test('Files… sends an image file as an image where the agent takes images, and the tray shows it', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'agent-chat-files-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const png = path.join(dir, 'shot.png');
+  writeFileSync(png, PNG.sync.write(new PNG({ width: 1, height: 1 })));
+  const notes = path.join(dir, 'notes.md');
+  writeFileSync(notes, '# notes');
+  const openFile = async () => [png, notes];
+
+  const seeing = createAgentSession({
+    agent: fakeDriver(scripted([]), { capabilities: { images: true } }),
+  });
+  await seeing.start();
+  const picked = await attachFiles.pick({ session: seeing, openFile });
+  assert.deepEqual(
+    picked?.map((a) => [a.kind, a.label, a.mime ?? null]),
+    [
+      ['image', 'shot.png', 'image/png'],
+      ['file', 'notes.md', null],
+    ],
+  );
+  await seeing.close();
+
+  const blind = createAgentSession({ agent: fakeDriver(scripted([])) });
+  await blind.start();
+  const asPaths = await attachFiles.pick({ session: blind, openFile });
+  assert.deepEqual(
+    asPaths?.map((a) => [a.kind, a.path]),
+    [
+      ['file', png],
+      ['file', notes],
+    ],
+    'an agent that cannot see images is given the path',
+  );
+
+  // and an image sent by its path is still drawn as its picture
+  const source: AttachSource = { id: 'p', label: 'Pick', pick: () => asPaths };
+  await renderX11(
+    <AgentChat
+      session={blind}
+      header={false}
+      composer={{ attach: [source] }}
+    />,
+    options,
+  );
+  await userEvent.click(await iconButton('Attach'));
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Pick' }));
+  const [tile] = await waitFor(() => {
+    const tiles = screen.getAllByTestName('agent-chat-attachment');
+    assert.equal(tiles.length, 2);
+    return tiles;
+  });
+  assert.equal(
+    within(tile!).all((n) => n.kind === 'image').length,
+    1,
+    'a picture, not a file icon',
+  );
+  await blind.close();
 });

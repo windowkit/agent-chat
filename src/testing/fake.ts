@@ -198,6 +198,9 @@ export function fakeDriver(
         async setMode(id) {
           h.emit({ type: 'info', info: { mode: id } });
         },
+        async rename(title) {
+          h.emit({ type: 'info', info: { title } });
+        },
         async close() {
           running?.abort();
         },

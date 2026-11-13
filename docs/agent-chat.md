@@ -38,6 +38,7 @@ renders: give the chat a new `key` to start a new session with new ones.
 | `permissions`   | `'ask' \| 'edits' \| 'read-only' \| 'auto'`      | What runs without asking. Default `'ask'`. See [The gate](#the-gate).                                                                                                                  |
 | `onToolCall`    | `(call: ToolCall) => ToolDecision \| Promise<…>` | Before every tool call: the app's say, ahead of the policy.                                                                                                                            |
 | `model`, `mode` | `string`                                         | The harness's model and permission mode to start in.                                                                                                                                   |
+| `title`         | `string`                                         | What the session is called until a `rename` or the harness names it (`info.title`). Claude Code is given it, and generates no name of its own.                                         |
 | `resume`        | `string`                                         | A harness session id to resume.                                                                                                                                                        |
 | `messages`      | `AgentMessage[]`                                 | A transcript to start from: an earlier `snapshot.messages` the app saved, shown settled. Pass the harness session id (`info.id`) as `resume` beside it, so the agent remembers it too. |
 | `settings`      | `'cli' \| 'isolated'`                            | `'cli'` (default): the harness as on the command line, with the user's settings and `CLAUDE.md`. `'isolated'`: none of them.                                                           |
@@ -45,22 +46,23 @@ renders: give the chat a new `key` to start a new session with new ones.
 
 ## The view's props
 
-| Prop          | Type                                                 | Notes                                                                                                        |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `session`     | `AgentSession`                                       | A session from `useAgent`. With it, none of the session's props above are allowed: they are the session's.   |
-| `fences`      | `{ [lang]: render \| { render, describe } }`         | Fenced blocks the app draws, by language. See [Rendering](#rendering).                                       |
-| `components`  | `{ [Name]: Component \| { component, describe } }`   | Tags a reply may write on their own line. A tag is a component iff its name is a key; nothing is evaluated.  |
-| `renderTool`  | `{ [label]: (info) => ReactNode }`                   | Tool calls the app draws, by the tool's label; `'*'` for every other. A tool's own `render` comes first.     |
-| `codeActions` | `CodeAction[]`                                       | Buttons on every fenced code block. Default `[copyCode]`. Nothing runs a block unless an action here does.   |
-| `onLink`      | `(href) => void`                                     | A link in a reply, or a link card's Open, was pressed. Nothing navigates by itself; without it, no Open.     |
-| `placeholder` | `string`                                             | The composer's. Default "Ask the agent… @ for a file, / for a command".                                      |
-| `composer`    | `{ markup?, files?, commands?, pasteAsAttachment? }` | The message box. See [The composer](#the-composer).                                                          |
-| `header`      | `boolean \| (session) => ReactNode`                  | The session's line: agent, model and mode pickers, cost, Copy chat. Default `true`.                          |
-| `empty`       | `ReactNode`                                          | Shown while the transcript is empty.                                                                         |
-| `fallback`    | `ReactNode \| (snapshot) => ReactNode`               | Shown instead of the chat when the harness cannot run here. Default: a line saying why, above an empty chat. |
-| `fontSize`    | `number`                                             | Base text size. Default: the theme's.                                                                        |
-| `autoFocus`   | `boolean`                                            | Focus the composer on mount. Default `true`.                                                                 |
-| `style`       | `StyleProp`                                          | The root box. It fills what it is put in by default (`flexGrow: 1`).                                         |
+| Prop            | Type                                                          | Notes                                                                                                                              |
+| --------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `session`       | `AgentSession`                                                | A session from `useAgent`. With it, none of the session's props above are allowed: they are the session's.                         |
+| `fences`        | `{ [lang]: render \| { render, describe } }`                  | Fenced blocks the app draws, by language. See [Rendering](#rendering).                                                             |
+| `components`    | `{ [Name]: Component \| { component, describe } }`            | Tags a reply may write on their own line. A tag is a component iff its name is a key; nothing is evaluated.                        |
+| `renderTool`    | `{ [label]: (info) => ReactNode }`                            | Tool calls the app draws, by the tool's label; `'*'` for every other. A tool's own `render` comes first.                           |
+| `codeActions`   | `CodeAction[]`                                                | Buttons on every fenced code block. Default `[copyCode]`. Nothing runs a block unless an action here does.                         |
+| `onLink`        | `(href) => void`                                              | A link in a reply, or a link card's Open, was pressed. Nothing navigates by itself; without it, no Open.                           |
+| `placeholder`   | `string`                                                      | The composer's. Default "Ask the agent… @ for a file, / for a command".                                                            |
+| `composer`      | `{ markup?, files?, commands?, pasteAsAttachment?, attach? }` | The message box. See [The composer](#the-composer).                                                                                |
+| `header`        | `boolean \| (session) => ReactNode`                           | The session's line: its name, agent, model and mode pickers, cost, Copy chat. Default `true`.                                      |
+| `onTitleChange` | `(title) => void`                                             | The session's name changed: the app's `title`, a `rename`, or the harness naming it. See [The session's name](#the-sessions-name). |
+| `empty`         | `ReactNode`                                                   | Shown while the transcript is empty.                                                                                               |
+| `fallback`      | `ReactNode \| (snapshot) => ReactNode`                        | Shown instead of the chat when the harness cannot run here. Default: a line saying why, above an empty chat.                       |
+| `fontSize`      | `number`                                                      | Base text size. Default: the theme's.                                                                                              |
+| `autoFocus`     | `boolean`                                                     | Focus the composer on mount. Default `true`.                                                                                       |
+| `style`         | `StyleProp`                                                   | The root box. It fills what it is put in by default (`flexGrow: 1`).                                                               |
 
 ## The ladder
 
@@ -122,7 +124,7 @@ transcript, with the same fences, components and code actions as a reply.
 
 A paste past ten lines or 2,000 characters becomes an attachment: its token,
 `[Pasted text #1 +312 lines]`, stands in the text, and the paste is sent
-beside it. A pasted image (a screenshot) is an image attachment.
+beside it. A pasted image (a screenshot) goes to the tray (below).
 
 `composer` turns parts of it off:
 
@@ -135,6 +137,86 @@ beside it. A pasted image (a screenshot) is an image attachment.
 
 `markup` is `'markdown'` (default), `'code'` (fences and inline code only) or
 `'none'`; nothing it draws changes what is sent.
+
+The box is one bordered field: **"+"** on its left, and on its right the
+send button — a ghost ⏎, what Enter does — which becomes stop (and pause,
+where the gate holds every call) while a turn runs.
+
+### Attachments: "+"
+
+"+" opens a menu of attachment sources. What one picks waits in a **tray**
+above the text, inside the field: an image as its picture (a square tile,
+cropped), a file as its name. A tile's remove button shows while the
+pointer is on it. The tray is sent with the text and emptied; picking sends
+nothing. A pasted image joins the tray too, rather than standing in the
+text as a token.
+`composer.attach` is the list — default `[attachFiles, attachImages]`:
+
+| Source         | Picks                                   | Sends                                                                                            |
+| -------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `attachFiles`  | Files, in the desktop's dialog          | `{ kind: 'file', path }`: the agent reads it (`@path` to Claude Code).                           |
+| `attachImages` | PNG, JPEG, GIF or WebP, up to 5 MB each | `{ kind: 'image', mime, data }`, base64: the agent sees it. Offered where `capabilities.images`. |
+
+`[]` draws no "+". A source of the app's own is an `AttachSource`: a label,
+an icon, and a `pick` that returns plain `Attachment`s, or `null` when the
+user cancelled. `when` hides it where it would not work; a throw from `pick`
+is a line in the transcript.
+
+```tsx
+const canvasShot: AttachSource = {
+  id: 'canvas',
+  label: 'Screenshot of the canvas',
+  icon: 'image',
+  when: (snapshot) => snapshot.capabilities.images,
+  pick: async () => [
+    {
+      kind: 'image',
+      label: 'canvas.png',
+      mime: 'image/png',
+      data: await canvasPng(),
+    },
+  ],
+};
+
+<AgentChat agent="claude" composer={{ attach: [canvasShot, attachFiles] }} />;
+```
+
+`pick` is handed the session and `openFile`, the desktop's file dialog on
+the chat's window. `imageAttachment(path)` reads an image file as
+`attachImages` does.
+
+### A message's actions
+
+Under each message is a row of icon buttons — Copy, and when it was sent.
+It shows once the pointer has rested on the message for 150 ms
+(`HOVER_DELAY`), not as it passes over: a sweep across the transcript does
+not flash a row under every message it crosses. The row is always laid out
+and hidden with `visibility: 'hidden'` — not drawn, clicked, focused or read
+out — so showing it moves nothing.
+
+## The session's name
+
+`snapshot.info.title` is what the session is called, and the header shows
+it ahead of the agent's name. It comes from three places, the latest
+winning:
+
+- the app's `title` option, before anything else says;
+- the harness: Claude Code names a session after its first prompt, and
+  `/rename` renames it. Neither is a message on its stream, so the driver
+  reads the name where it can — the `UserPromptSubmit` hook is told it, and
+  the saved session (`getSessionInfo`) once each turn is over;
+- `session.rename(title)`, which shows it at once and tells the harness
+  (Claude Code keeps it as a `/rename` would).
+
+`onTitleChange` hears each new name — for a window's title, a tab, a list of
+sessions:
+
+```tsx
+const [name, setName] = useState('Agent chat');
+<window title={name}>
+  <AgentChat agent="claude" onTitleChange={setName} />
+</window>;
+```
 
 ## Tools
 
@@ -265,6 +347,7 @@ React (`@windowkit/agent-chat/core`). An `AgentSession`:
 | `respond(toolId, choice)`                   | Answers an approval: `'allow-once'`, `'allow-session'`, `'deny'`.                                       |
 | `answer(questionId, answers \| null)`       | Answers a question the agent asked.                                                                     |
 | `setModel(id)`, `setMode(id)`               | Where `capabilities.models` / `modes`.                                                                  |
+| `rename(title)`                             | Names the session: `info.title` at once, and the harness where it keeps names.                          |
 | `notify(level, text)`                       | A line in the transcript from the app.                                                                  |
 | `toMarkdown()`                              | The transcript, as Copy chat writes it.                                                                 |
 | `start()`, `close()`                        | The harness starts at the first `send` unless started; `useAgent` closes it on unmount.                 |

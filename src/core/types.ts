@@ -295,6 +295,12 @@ export interface SessionInfo {
   agent: string;
   /** The harness's own session id, once it has one. */
   id?: string;
+  /**
+   * What the session is called: the app's `title`, a `rename`, or the name
+   * the harness gave it — Claude Code names a session after its first
+   * prompt, and `/rename` renames it. Absent until one of them says.
+   */
+  title?: string;
   cwd?: string;
   model?: string;
   models: readonly { id: string; label: string; description?: string }[];

@@ -1,6 +1,6 @@
-// The session's line: which agent and model, the mode and model pickers
-// where the harness has them, what the session has cost, and Copy for the
-// whole transcript.
+// The session's line: its name (or the agent's, until it has one), which
+// agent and model, the mode and model pickers where the harness has them,
+// what the session has cost, and Copy for the whole transcript.
 
 import type { ReactElement } from 'react';
 import { Button, Select, useClipboard } from 'react-x11';
@@ -30,9 +30,22 @@ export function Header(): ReactElement {
         borderBottomColor: look.border,
       }}
     >
-      <text style={{ color: look.text, fontWeight: 'bold' }}>
-        {agentName(info.agent)}
+      <text
+        style={{
+          color: look.text,
+          fontWeight: 'bold',
+          flexShrink: 1,
+          textOverflow: 'ellipsis',
+        }}
+        data-testname="agent-chat-title"
+      >
+        {info.title ?? agentName(info.agent)}
       </text>
+      {info.title ? (
+        <text style={{ color: look.muted, fontSize: 12, flexShrink: 0 }}>
+          {agentName(info.agent)}
+        </text>
+      ) : null}
       {info.model && !(capabilities.models && info.models.length) ? (
         <text style={{ color: look.muted, fontSize: 12 }}>{info.model}</text>
       ) : null}

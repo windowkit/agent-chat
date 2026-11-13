@@ -41,7 +41,19 @@ export interface SdkQuery extends AsyncIterable<SdkMessage> {
     Array<{ value: string; displayName: string; description?: string }>
   >;
   supportedCommands?(): Promise<Array<{ name: string; description?: string }>>;
+  /** Name the live session, as a rename in the host app does. Not in the
+   *  SDK's declarations, so read as optional. */
+  renameSession?(title: string, sessionId?: string): Promise<void>;
   close?(): void;
+}
+
+/** What `getSessionInfo` says of a session, the part this driver reads. */
+export interface SdkSessionInfo {
+  /** The custom title, the generated one, or the first prompt. */
+  summary?: string;
+  /** Set by `/rename` or `renameSession`. */
+  customTitle?: string;
+  firstPrompt?: string;
 }
 
 export type SdkToolHandler = (
@@ -65,6 +77,17 @@ export interface ClaudeSdk {
     version?: string;
     tools?: unknown[];
   }): unknown;
+  /** The session's saved metadata, its title among it. */
+  getSessionInfo?(
+    sessionId: string,
+    options?: { dir?: string },
+  ): Promise<SdkSessionInfo | undefined>;
+  /** Name a saved session, for an SDK whose query cannot. */
+  renameSession?(
+    sessionId: string,
+    title: string,
+    options?: { dir?: string },
+  ): Promise<void>;
 }
 
 export const CLAUDE_SDK = '@anthropic-ai/claude-agent-sdk';

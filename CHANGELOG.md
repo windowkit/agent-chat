@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/windowkit/agent-chat/compare/v0.3.0...v0.4.0) (2026-11-13)
+
+
+### Features
+
+* the Claude driver keeps the plan, links, images and suggestions, and the chat draws them ([e3f6513](https://github.com/windowkit/agent-chat/commit/e3f6513734a331e008ace3203625135f98a5a86b))
+* the Claude driver keeps the plan, links, images and suggestions, and the chat draws them ([82ea9f1](https://github.com/windowkit/agent-chat/commit/82ea9f14cfa6caf2c774876952ec4dad450a4455))
+
 ## [0.3.0](https://github.com/windowkit/agent-chat/compare/v0.2.0...v0.3.0) (2026-11-12)
 
 

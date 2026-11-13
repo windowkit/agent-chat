@@ -78,10 +78,28 @@ driver is tested against those types. And a message the app sends with
 default holds an undeclared sender's message for approval when the
 receiving session runs tools without asking (`permissions: 'auto'`).
 
-`TodoWrite` is drawn as the turn's plan rather than as a tool card, and
-`AskUserQuestion` as a question form whose answers go back through
-`canUseTool`'s `updatedInput`. A subagent's messages nest under the tool call
-that started it.
+The plan is the turn's plan part rather than tool cards: Claude Code's task
+list, the fold of every `TaskCreate` and `TaskUpdate` the session saw
+(corrected by what `TaskList` and `TaskGet` report, and kept across turns),
+or a `TodoWrite`. `AskUserQuestion` is a question form whose answers go
+back through `canUseTool`'s `updatedInput`. A subagent's messages nest under
+the tool call that started it.
+
+What a tool's structured result (`tool_use_result`) says beyond its text is
+kept (`src/drivers/claude/results.ts`):
+
+- Bash's `gitOperation.pr` is a `pull-request` data part; the Agent tool's
+  `remote_launched.sessionUrl` and Workflow's `sessionUrl` a `session`; the
+  Artifact tool's publish (`url`, `path`, `title`) an `artifact`;
+  SendUserFile's `attachments` an `attachments`. Each sits after the call's
+  card, which stays, keyed `<tool id>:pr` and so on. Their values are
+  `DataValues` in the core's types.
+- `image` blocks in a tool result, or Read's own result for an image file,
+  are `image` outputs on the card, with Read's dimensions.
+
+`promptSuggestions` is on: the suggestion Claude Code sends after a turn's
+`result` is the session's `suggestions`. `driverOptions: {
+promptSuggestions: false }` turns it off.
 
 ## Writing a driver
 
@@ -129,7 +147,7 @@ What the host offers:
 | `DriverHost`                  | Notes                                                                                                  |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `config`                      | The session's options, resolved: `cwd`, `instructions`, `removed`, `replaced`, `tools`, `permissions`… |
-| `emit(event)`                 | What happened: text, tool calls, plans, notices, usage, `turn-end`. Deltas, never snapshots.           |
+| `emit(event)`                 | What happened: text, tool calls, plans, data, notices, suggestions, usage, `turn-end`. Deltas.         |
 | `gate(call)`                  | The app's `onToolCall`, then the policy. Never waits on the user.                                      |
 | `approve(call, signal?)`      | The approval row. Waits on the user and while paused; no timeout.                                      |
 | `ask(id, questions, signal?)` | A question form. `null` if dismissed.                                                                  |

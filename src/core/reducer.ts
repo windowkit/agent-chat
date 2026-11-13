@@ -126,6 +126,12 @@ export function reduce(
             plan(kids, action.entries, now),
           )
         : plan(messages, action.entries, now);
+    case 'data':
+      return action.parent
+        ? inChildren(messages, action.parent, now, (kids) =>
+            data(kids, action, now),
+          )
+        : data(messages, action, now);
     case 'notice':
       return appendPart(messages, now, (m) => ({
         type: 'notice',
@@ -178,6 +184,7 @@ export function reduce(
       return closeTurn(messages, action.reason === 'stopped');
     case 'info':
     case 'usage':
+    case 'suggestion':
       return messages;
   }
 }
@@ -332,6 +339,24 @@ function plan(
       ? [...m.parts.slice(0, at), part, ...m.parts.slice(at + 1)]
       : [...m.parts, part];
   return replaceAt(all, i, { ...m, parts });
+}
+
+function data(
+  messages: Messages,
+  ev: Extract<DriverEvent, { type: 'data' }>,
+  now: number,
+): Messages {
+  if (findLivePart(messages, ev.id)) {
+    return mapPart(messages, ev.id, (p) =>
+      p.type === 'data' ? { ...p, value: ev.value } : p,
+    );
+  }
+  return appendPart(messages, now, () => ({
+    type: 'data',
+    id: ev.id,
+    name: ev.name,
+    value: ev.value,
+  }));
 }
 
 /** Apply `fn` to the children of the tool call `parent` — a subagent. */

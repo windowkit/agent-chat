@@ -39,9 +39,15 @@ const KINDS: Readonly<Record<string, ToolKind>> = {
   ExitPlanMode: 'think',
 };
 
-/** The tools this driver draws as something other than a tool card. */
+/** The tools this driver draws as something other than a tool card: the
+ *  plan (`TodoWrite`, and the task tools Claude Code plans with now) and the
+ *  question card. */
 export const HIDDEN_TOOLS: ReadonlySet<string> = new Set([
   'TodoWrite',
+  'TaskCreate',
+  'TaskUpdate',
+  'TaskList',
+  'TaskGet',
   'AskUserQuestion',
 ]);
 

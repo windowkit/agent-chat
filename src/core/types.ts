@@ -58,7 +58,14 @@ export type ToolOutput =
   | { type: 'terminal'; text: string; exitCode?: number }
   /** A file's change. `oldText` null for a new file. */
   | { type: 'diff'; path: string; oldText: string | null; newText: string }
-  | { type: 'image'; mime: string; data: string /* base64 */ }
+  /** `width` and `height` in pixels, where the harness says. */
+  | {
+      type: 'image';
+      mime: string;
+      data: string /* base64 */;
+      width?: number;
+      height?: number;
+    }
   /** What an app tool's `run` returned, as it returned it. */
   | { type: 'value'; value: unknown };
 
@@ -159,6 +166,49 @@ export interface DataPart {
   id: string;
   name: string;
   value: unknown;
+}
+
+/** `DataPart.name`s a driver of this package writes, and their values. */
+export interface DataValues {
+  /** A pull request a command opened, edited or merged. */
+  'pull-request': PullRequestData;
+  /** An agent session started elsewhere: a cloud session, a workflow. */
+  session: SessionLinkData;
+  /** A page the agent published. */
+  artifact: ArtifactData;
+  /** Files the agent sent the user. */
+  attachments: AttachmentsData;
+}
+
+export interface PullRequestData {
+  number: number;
+  url?: string;
+  /** `'created'`, `'edited'`, `'merged'`, or what else the harness says. */
+  action: string;
+}
+
+export interface SessionLinkData {
+  url: string;
+  /** What the session was started to do. */
+  title?: string;
+}
+
+export interface ArtifactData {
+  url: string;
+  title?: string;
+  /** The local file it was published from. */
+  path?: string;
+}
+
+export interface AttachmentsData {
+  caption?: string;
+  files: readonly {
+    path: string;
+    /** Bytes. */
+    size?: number;
+    mime?: string;
+    isImage: boolean;
+  }[];
 }
 
 export type Part =

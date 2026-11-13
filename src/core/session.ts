@@ -111,6 +111,9 @@ export interface SessionSnapshot {
   readonly paused: boolean;
   /** Text taken back out of the queue by `stop()`, for the composer. */
   readonly restored?: string;
+  /** Replies the harness suggests the user might send next, offered once a
+   *  turn is over and dropped when the next message is sent. */
+  readonly suggestions: readonly string[];
 }
 
 export interface AgentSession {
@@ -247,6 +250,7 @@ class Session implements AgentSession {
       },
       capabilities: NO_CAPABILITIES,
       paused: false,
+      suggestions: [],
     });
   }
 
@@ -334,9 +338,20 @@ class Session implements AgentSession {
           },
         });
         return;
+      case 'suggestion':
+        if (!event.text.trim()) return;
+        this.#set({
+          suggestions: [
+            ...this.#snapshot.suggestions.filter((t) => t !== event.text),
+            event.text,
+          ],
+        });
+        return;
       case 'message':
-        // the harness took it and is acting on it: a turn, if none runs
+        // the harness took it and is acting on it: a turn, if none runs,
+        // and the replies suggested for the last one no longer fit
         this.#dispatch(event);
+        if (this.#snapshot.suggestions.length) this.#set({ suggestions: [] });
         if (!this.#turn) {
           this.#turn = new AbortController();
           this.#set({ status: this.#paused ? 'paused' : 'running' });
@@ -377,6 +392,7 @@ class Session implements AgentSession {
     if (!text.trim() && !attachments.length) return;
     if (this.#snapshot.status === 'closed') return;
 
+    if (this.#snapshot.suggestions.length) this.#set({ suggestions: [] });
     const id = `u${++this.#ids}`;
     const parts: Part[] = [];
     if (text)

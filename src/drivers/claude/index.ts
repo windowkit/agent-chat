@@ -36,6 +36,7 @@ import type {
   ToolCall,
 } from '../../core/types.js';
 import { InputQueue } from './input.js';
+import { TASK_TOOLS, TaskFold, dataOf, imagesOf } from './results.js';
 import { incomingOf, originOf, peerEnvelope } from './peers.js';
 import { shapeFromJsonSchema, zodShapeOf } from './schema.js';
 import {
@@ -171,7 +172,11 @@ async function startClaude(
   }
 
   // --- tool calls, as the session sees them --------------------------------
-  const seen = new Map<string, { name: string; input: unknown }>();
+  const seen = new Map<
+    string,
+    { name: string; input: unknown; parent?: string }
+  >();
+  const tasks = new TaskFold();
   const denied = new Set<string>();
   const hidden = new Set<string>();
 
@@ -271,6 +276,9 @@ async function startClaude(
     // already the default for the models that think; `driverOptions.thinking`
     // overrides it, for an older model or for none.
     thinking: { type: 'adaptive', display: 'summarized' },
+    // a reply the user might send next, after each turn: drawn as a chip
+    // that fills the composer
+    promptSuggestions: true,
     hooks: { PreToolUse: [{ hooks: [preToolUse] }] },
     canUseTool,
     env: {
@@ -345,6 +353,11 @@ async function startClaude(
       }
       case 'result':
         return onResult(m);
+      case 'prompt_suggestion':
+        if (typeof m.suggestion === 'string') {
+          host.emit({ type: 'suggestion', text: m.suggestion });
+        }
+        return;
     }
   };
 
@@ -407,7 +420,11 @@ async function startClaude(
           const id = String(block.id);
           const name = String(block.name);
           blocks.set(index, { kind: 'tool', id });
-          seen.set(id, { name, input: undefined });
+          seen.set(id, {
+            name,
+            input: undefined,
+            ...(parent ? { parent } : {}),
+          });
           if (HIDDEN_TOOLS.has(name)) {
             hidden.add(id);
             return;
@@ -486,7 +503,11 @@ async function startClaude(
       } else if (block.type === 'tool_use') {
         const id = String(block.id);
         const name = String(block.name);
-        seen.set(id, { name, input: block.input });
+        seen.set(id, {
+          name,
+          input: block.input,
+          ...(parent ? { parent } : {}),
+        });
         if (name === 'TodoWrite') {
           hidden.add(id);
           host.emit({
@@ -519,12 +540,29 @@ async function startClaude(
   const onToolResults = (m: SdkMessage) => {
     const msg = m.message as { content?: unknown } | undefined;
     if (!Array.isArray(msg?.content)) return;
-    for (const block of msg.content as Record<string, unknown>[]) {
-      if (block.type !== 'tool_result') continue;
+    const results = (msg.content as Record<string, unknown>[]).filter(
+      (b) => b.type === 'tool_result',
+    );
+    // the tool's own output object, which is one per message: a message
+    // with several results says nothing of which it belongs to
+    const structured = results.length === 1 ? m.tool_use_result : undefined;
+    for (const block of results) {
       const id = String(block.tool_use_id);
-      if (hidden.has(id)) continue;
       const call = seen.get(id);
       const isError = block.is_error === true;
+      if (
+        call &&
+        TASK_TOOLS.has(call.name) &&
+        !isError &&
+        tasks.apply(call.name, call.input, structured)
+      ) {
+        host.emit({
+          type: 'plan',
+          entries: tasks.entries(),
+          ...(call.parent ? { parent: call.parent } : {}),
+        });
+      }
+      if (hidden.has(id)) continue;
       const text = resultText(block.content);
       const name = call?.name ?? '';
       const app = isAppTool(aliases[name] ?? name);
@@ -538,8 +576,25 @@ async function startClaude(
         state: isError ? 'error' : 'done',
         ...(isError ? { error: text } : {}),
         // an app tool's outputs are the session's, from the value `run` returned
-        ...(app ? {} : { output: outputOf(name, call?.input, text, isError) }),
+        ...(app
+          ? {}
+          : {
+              output: [
+                ...outputOf(name, call?.input, text, isError),
+                ...imagesOf(block.content, structured),
+              ],
+            }),
       });
+      if (isError || app) continue;
+      for (const d of dataOf(name, call?.input, structured)) {
+        host.emit({
+          type: 'data',
+          id: `${id}:${d.key}`,
+          name: d.name,
+          value: d.value,
+          ...(call?.parent ? { parent: call.parent } : {}),
+        });
+      }
     }
   };
 

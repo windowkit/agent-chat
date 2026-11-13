@@ -7,7 +7,13 @@
 // `onToolCall`). The top rung lifts the session out (`useAgent`, then
 // `session`) with the same options, moved rather than rewritten.
 
-import { useMemo, useRef, type ReactElement, type ReactNode } from 'react';
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import type { StyleProp } from 'react-x11';
 
 import {
@@ -21,6 +27,7 @@ import { Composer, type ComposerOptions } from './Composer.js';
 import {
   ChatContext,
   componentMap,
+  composerChannel,
   fenceMap,
   type ChatContextValue,
 } from './context.js';
@@ -126,6 +133,7 @@ function ChatView({
   const look = useLook();
   const { fences, components, renderTool, codeActions, onLink, fontSize } =
     view;
+  const [composer] = useState(composerChannel);
   const context = useMemo<ChatContextValue>(
     () => ({
       session,
@@ -135,8 +143,18 @@ function ChatView({
       codeActions: codeActions ?? [copyCode],
       onLink,
       fontSize,
+      composer,
     }),
-    [session, fences, components, renderTool, codeActions, onLink, fontSize],
+    [
+      session,
+      fences,
+      components,
+      renderTool,
+      codeActions,
+      onLink,
+      fontSize,
+      composer,
+    ],
   );
 
   if (snap.status === 'unavailable' && view.fallback !== undefined) {

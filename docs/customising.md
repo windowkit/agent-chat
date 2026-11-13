@@ -76,8 +76,8 @@ Parts of the chat no seam reaches:
 2. **The assistant message**: one Copy button, and no `messageActions` (Edit,
    Retry), which `docs/design.md` designs.
 3. **Reasoning**: the collapsed "Thought" row.
-4. **The plan checklist**, built from `TodoWrite` only. Claude Code plans with
-   `TaskCreate` and `TaskUpdate` today, which draw as plain tool cards (see
+4. **The plan checklist** (`PlanChecklist`), built from Claude Code's task
+   list or `TodoWrite` (see
    [the stream catalogue](claude-stream.md#planned-tasks)).
 5. **Notices** from `session.notify`, and **attachment chips**, drawn as
    `[label]` text.
@@ -88,7 +88,7 @@ Parts of the chat no seam reaches:
 8. **The tool card's frame**: the title row, state labels and icons, the
    subagent thread, even with a `renderTool`.
 9. **Default tool outputs**: the hand-built diff (old lines, then new), the
-   terminal view, the JSON view, `[image, mime]` in place of an image, and
+   terminal view, the JSON view, the image view (`ImageView`), and
    the line limits (40 to 300).
 10. **The code block's frame and header**, and `CodeAction.icon`.
 11. **The transcript**: padding, gaps, the activity line's wording, no
@@ -99,7 +99,10 @@ Parts of the chat no seam reaches:
 14. **The header's pieces**, reusable only by replacing the whole header.
 15. **Every spacing, radius and small type size**, and `fontSize` reaching
     only prose.
-16. **`data` parts**: drawn as nothing, and no seam to draw them.
+16. **`data` parts**: the four the Claude driver writes are drawn as cards
+    (`PullRequestCard`, `SessionCard`, `ArtifactCard`, `AttachmentCard`);
+    any other as nothing, and no seam to draw them. The suggested-reply
+    chips (`SuggestedReplies`) have none either.
 17. **Copy and export formats** (`messageMarkdown`, `transcriptMarkdown`): a
     tool call exports as one line.
 

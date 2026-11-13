@@ -15,6 +15,7 @@ import type { ScrollableNode, ScrollEvent } from 'react-x11';
 import { useChat } from './context.js';
 import { useLook } from './look.js';
 import { MessageList } from './MessageList.js';
+import { SuggestedReplies } from './SuggestedReplies.js';
 import { useSessionSnapshot } from './use-agent.js';
 
 /** Within this many pixels of the end counts as at the end. */
@@ -45,6 +46,13 @@ export function Transcript({ empty }: { empty?: ReactNode }): ReactElement {
   };
 
   const activity = activityOf(snap.status, snap.messages);
+  // offered once the turn is over, under the reply they follow
+  const suggestions =
+    snap.status === 'idle' &&
+    snap.suggestions.length &&
+    snap.messages[snap.messages.length - 1]?.role === 'assistant'
+      ? snap.suggestions
+      : null;
   return (
     <box
       ref={pane}
@@ -59,6 +67,7 @@ export function Transcript({ empty }: { empty?: ReactNode }): ReactElement {
         ) : (
           (empty ?? null)
         )}
+        {suggestions ? <SuggestedReplies suggestions={suggestions} /> : null}
         {activity ? (
           <text style={{ color: look.muted, fontSize: 12 }}>{activity}</text>
         ) : null}

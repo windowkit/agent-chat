@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { messageMarkdown } from '../src/core/markdown.js';
 import { reduce } from '../src/core/reducer.js';
 import type { AgentMessage, ToolPart } from '../src/core/types.js';
 
@@ -206,4 +207,59 @@ test('a message from another session goes in before the queued ones, once', () =
   assert.equal(m[2]!.role, 'user');
   assert.deepEqual(m[2]!.from, from);
   assert.equal((m[2]!.parts[0] as { text: string }).text, 'done here');
+});
+
+test('a data part is added, then replaced by its id; under a subagent it nests', () => {
+  let m = reduce(
+    [user('u1', 'go')],
+    { type: 'data', id: 'pr', name: 'pull-request', value: { number: 1 } },
+    1,
+  );
+  m = reduce(
+    m,
+    { type: 'data', id: 'pr', name: 'pull-request', value: { number: 2 } },
+    1,
+  );
+  assert.deepEqual(m[1]!.parts, [
+    { type: 'data', id: 'pr', name: 'pull-request', value: { number: 2 } },
+  ]);
+  m = reduce(m, { type: 'tool-start', id: 'agent', name: 'Agent' }, 1);
+  m = reduce(
+    m,
+    { type: 'data', id: 's', name: 'session', value: {}, parent: 'agent' },
+    1,
+  );
+  const agent = m[1]!.parts[1] as ToolPart;
+  assert.deepEqual(agent.children?.[0]?.parts, [
+    { type: 'data', id: 's', name: 'session', value: {} },
+  ]);
+  // a suggestion is the session's, not the transcript's
+  assert.equal(reduce(m, { type: 'suggestion', text: 'next' }, 1), m);
+});
+
+test('a link card copies as a line with its link', () => {
+  const message: AgentMessage = {
+    id: 'a',
+    role: 'assistant',
+    createdAt: 0,
+    parts: [
+      {
+        type: 'data',
+        id: 'pr',
+        name: 'pull-request',
+        value: { number: 7, url: 'https://x/pull/7', action: 'created' },
+      },
+      {
+        type: 'data',
+        id: 'art',
+        name: 'artifact',
+        value: { url: 'https://x/a', title: 'Report' },
+      },
+      { type: 'data', id: 'other', name: 'unknown', value: {} },
+    ],
+  };
+  assert.equal(
+    messageMarkdown(message),
+    '> Pull request [#7](https://x/pull/7) created\n\n> Published [Report](https://x/a)',
+  );
 });

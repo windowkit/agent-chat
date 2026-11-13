@@ -6,8 +6,11 @@ import { memo, useState, type ReactElement } from 'react';
 import { Button, Icon, useClipboard } from 'react-x11';
 
 import { messageMarkdown, sourceLabel } from '../core/markdown.js';
-import type { AgentMessage, Part, PlanPart } from '../core/types.js';
+import type { AgentMessage, FilePart, Part } from '../core/types.js';
+import { DataPartView } from './DataPartView.js';
+import { ImageView } from './ImageView.js';
 import { useLook, type ChatLook } from './look.js';
+import { PlanChecklist } from './PlanChecklist.js';
 import { QuestionCard } from './QuestionCard.js';
 import { TextBlock } from './TextBlock.js';
 import { ToolCard } from './ToolCard.js';
@@ -89,6 +92,14 @@ function UserMessage({
               streaming={false}
               message={message}
             />
+          ) : p.type === 'file' && isImage(p) ? (
+            // a pasted screenshot is the picture, not its token
+            <ImageView
+              key={p.id}
+              source={{ data: p.data! }}
+              maxHeight={look.thumbHeight}
+              alt={p.label}
+            />
           ) : p.type === 'file' && !textOf(message).includes(`[${p.label}]`) ? (
             // an attachment the composer made is already in the text as its
             // token; one sent some other way gets a line of its own
@@ -157,7 +168,7 @@ function PartView({
     case 'question':
       return <QuestionCard part={part} />;
     case 'plan':
-      return <Plan part={part} look={look} />;
+      return <PlanChecklist part={part} />;
     case 'notice':
       return (
         <text
@@ -175,13 +186,15 @@ function PartView({
         </text>
       );
     case 'file':
-      return (
+      return isImage(part) ? (
+        <ImageView source={{ data: part.data! }} alt={part.label} />
+      ) : (
         <text
           style={{ color: look.muted, fontSize: 11 }}
         >{`[${part.label}]`}</text>
       );
     case 'data':
-      return null;
+      return <DataPartView part={part} />;
   }
 }
 
@@ -232,41 +245,6 @@ function Reasoning({
   );
 }
 
-function Plan({
-  part,
-  look,
-}: {
-  part: PlanPart;
-  look: ChatLook;
-}): ReactElement {
-  return (
-    <box style={{ flexDirection: 'column', gap: 2 }}>
-      {part.entries.map((e, i) => (
-        <box
-          key={i}
-          style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}
-        >
-          {e.status === 'completed' ? (
-            <Icon name="check" size={12} color={look.success} />
-          ) : e.status === 'in_progress' ? (
-            <Icon name="dot" size={12} color={look.accent} />
-          ) : (
-            <Icon name="dash" size={12} color={look.muted} />
-          )}
-          <text
-            style={{
-              color: e.status === 'completed' ? look.muted : look.text,
-              fontWeight: e.status === 'in_progress' ? 'bold' : 'normal',
-            }}
-          >
-            {e.text}
-          </text>
-        </box>
-      ))}
-    </box>
-  );
-}
-
 function CopyButton({ message }: { message: AgentMessage }): ReactElement {
   const clipboard = useClipboard();
   const [copied, setCopied] = useState(false);
@@ -283,6 +261,10 @@ function CopyButton({ message }: { message: AgentMessage }): ReactElement {
       }}
     />
   );
+}
+
+function isImage(p: FilePart): boolean {
+  return p.mime.startsWith('image/') && !!p.data;
 }
 
 function textOf(message: AgentMessage): string {

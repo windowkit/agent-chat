@@ -33,6 +33,25 @@ export interface ChatContextValue {
   onLink: ((href: string) => void) | undefined;
   /** Base text size, the theme's unless the app said. */
   fontSize: number | undefined;
+  /** The message box, for a part that puts text in it without sending. */
+  composer: ComposerChannel;
+}
+
+/** How a part reaches the composer: it attaches while mounted. */
+export interface ComposerChannel {
+  /** Replace what is in the box, and focus it. Sends nothing. */
+  fill(text: string): void;
+  attach(fill: ((text: string) => void) | null): void;
+}
+
+export function composerChannel(): ComposerChannel {
+  let current: ((text: string) => void) | null = null;
+  return {
+    fill: (text) => current?.(text),
+    attach: (fill) => {
+      current = fill;
+    },
+  };
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null);

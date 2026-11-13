@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/windowkit/agent-chat/compare/v0.4.0...v0.5.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* the react-x11 peer is now ^3.0.0.
+
+### Features
+
+* attachments from "+", a ghost Send in the field, hover actions and the session's name ([#13](https://github.com/windowkit/agent-chat/issues/13)) ([6e887bb](https://github.com/windowkit/agent-chat/commit/6e887bb5c5975e288962e3d885589919aa784030))
+
 ## [0.4.0](https://github.com/windowkit/agent-chat/compare/v0.3.0...v0.4.0) (2026-11-13)
 
 

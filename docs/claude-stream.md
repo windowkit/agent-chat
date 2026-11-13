@@ -102,11 +102,8 @@ A checklist of what the agent means to do, kept current as it works.
   result `oldTodos` and `newTodos`.
 - _transcript_: `task_reminder` attachments carry the current list.
 
-_Today_: `TodoWrite` becomes a plan part, drawn as the checklist
-(`index.ts:490`). The Task tools are in the `todos` permission category
-(`tools.ts:15`) but are drawn as four plain tool cards, so **a session
-today shows no plan at all**. The driver should fold them into the same
-plan part.
+_Today_: the Task tools and `TodoWrite` are one plan part, drawn as the
+checklist (`results.ts`'s `TaskFold`). Their cards are hidden.
 
 ### Links out
 
@@ -123,7 +120,8 @@ plan part.
   The view's `onOpenFile(path, line)`, designed in `docs/design.md`, is
   where these go.
 
-_Today_: none of these are cards. A PR's URL is in Bash's output text.
+_Today_: a PR, a session and an artifact are `data` parts, drawn as cards
+whose Open goes to `onLink`. Files are not yet links.
 
 ### Terminal sessions and background work
 
@@ -145,7 +143,8 @@ drawn; the rest is dropped.
 
 Read's `image` result; `image` blocks inside tool results (a browser's
 screenshot); `image` blocks in a user message (a pasted screenshot);
-SendUserFile's `isImage`. _Today_: `[image, mime]` text.
+SendUserFile's `isImage`. _Today_: drawn as images; SendUserFile's files as
+an attachment card.
 
 ### Diffs
 
@@ -183,7 +182,7 @@ decision, source, reasonType }` on the result. _Today_: the approval row,
 | `system/hook_started`, `hook_response`; _transcript_ `stop_hook_summary`                     | A collapsed hook log                               | Dropped            |
 | `system/memory_recall`                                                                       | "Recalled memories"                                | Dropped            |
 | `system/files_persisted`                                                                     | File chips                                         | Dropped            |
-| `prompt_suggestion`                                                                          | A suggested-reply chip                             | Dropped            |
+| `prompt_suggestion`                                                                          | A suggested-reply chip                             | Chips              |
 | `tool_use_summary`                                                                           | A label over a collapsed run of tool cards         | Dropped            |
 | `conversation_reset`                                                                         | Divider; clear the view                            | Dropped            |
 

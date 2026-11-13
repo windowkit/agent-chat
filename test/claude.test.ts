@@ -666,3 +666,316 @@ test('a turn Claude Code took from another session or a channel is drawn as thei
   assert.equal(session.snapshot.status, 'running');
   await session.close();
 });
+
+/** A tool's result, with the tool's own output object beside its text. */
+const structuredResult = (
+  id: string,
+  content: unknown,
+  result: unknown,
+  parent: string | null = null,
+) =>
+  ({
+    type: 'user',
+    message: {
+      content: [{ type: 'tool_result', tool_use_id: id, content }],
+    },
+    tool_use_result: result,
+    parent_tool_use_id: parent,
+  }) as SdkMessage;
+const call = (id: string, name: string, input: unknown) => ({
+  type: 'tool_use',
+  id,
+  name,
+  input,
+});
+
+test('the task tools are the plan: the fold of every create and update, across turns', async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
+  session.send('plan it');
+  await until(() => state.prompts.length === 1);
+  state.emit(
+    assistant('m1', [
+      call('c1', 'TaskCreate', {
+        subject: 'Read the code',
+        description: 'All of it',
+        activeForm: 'Reading the code',
+      }),
+      call('c2', 'TaskCreate', { subject: 'Fix it', description: '' }),
+    ]),
+  );
+  state.emit(
+    structuredResult('c1', 'Task #1 created', {
+      task: { id: '1', subject: 'Read the code' },
+    }),
+  );
+  state.emit(
+    structuredResult('c2', 'Task #2 created', {
+      task: { id: '2', subject: 'Fix it' },
+    }),
+  );
+  state.emit(
+    assistant('m2', [
+      call('u1', 'TaskUpdate', { taskId: '1', status: 'in_progress' }),
+    ]),
+  );
+  state.emit(
+    structuredResult('u1', 'Updated task #1 status', {
+      success: true,
+      taskId: '1',
+      updatedFields: ['status'],
+      statusChange: { from: 'pending', to: 'in_progress' },
+    }),
+  );
+  state.emit(success);
+  await until(() => session.snapshot.status === 'idle', 'the turn to end');
+
+  const first = session.snapshot.messages[1]!;
+  assert.deepEqual(
+    first.parts.map((p) => p.type),
+    ['plan'],
+    'no tool card for a task call',
+  );
+  assert.deepEqual(first.parts[0]!.type === 'plan' && first.parts[0]!.entries, [
+    { text: 'Read the code', status: 'in_progress' },
+    { text: 'Fix it', status: 'pending' },
+  ]);
+
+  // the next turn updates the list the last one made
+  session.send('go on');
+  await until(() => state.prompts.length === 2);
+  state.emit(
+    assistant('m3', [
+      call('u2', 'TaskUpdate', { taskId: '1', status: 'completed' }),
+      call('u3', 'TaskUpdate', { taskId: '2', status: 'deleted' }),
+    ]),
+  );
+  state.emit(
+    structuredResult('u2', 'Updated', {
+      success: true,
+      taskId: '1',
+      statusChange: { from: 'in_progress', to: 'completed' },
+    }),
+  );
+  state.emit(structuredResult('u3', 'Deleted', { success: true, taskId: '2' }));
+  state.emit(assistant('m4', [call('l1', 'TaskList', {})]));
+  state.emit(
+    structuredResult('l1', '#1 Read the code', {
+      tasks: [
+        {
+          id: '1',
+          subject: 'Read the code',
+          status: 'completed',
+          blockedBy: [],
+        },
+        { id: '3', subject: 'Ship it', status: 'pending', blockedBy: [] },
+      ],
+    }),
+  );
+  state.emit(success);
+  await until(() => session.snapshot.status === 'idle', 'the second turn');
+  const second = session.snapshot.messages[3]!;
+  assert.deepEqual(
+    second.parts.map((p) => p.type),
+    ['plan'],
+  );
+  assert.deepEqual(
+    second.parts[0]!.type === 'plan' && second.parts[0]!.entries,
+    [
+      { text: 'Read the code', status: 'completed' },
+      { text: 'Ship it', status: 'pending' },
+    ],
+    'TaskList corrects the fold',
+  );
+  await session.close();
+});
+
+test('a pull request, a session, an artifact and sent files are data parts beside their cards', async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({
+    agent: claudeDriver({ sdk }),
+    permissions: 'auto',
+  });
+  await session.start();
+  session.send('ship it');
+  await until(() => state.prompts.length === 1);
+  state.emit(
+    assistant('m1', [
+      call('b1', 'Bash', { command: 'gh pr create' }),
+      call('a1', 'Agent', { description: 'Port the tests' }),
+      call('p1', 'Artifact', { file_path: 'report.html' }),
+      call('s1', 'SendUserFile', { files: ['shot.png', 'notes.md'] }),
+    ]),
+  );
+  state.emit(
+    structuredResult('b1', 'https://github.com/o/r/pull/7', {
+      stdout: 'https://github.com/o/r/pull/7',
+      stderr: '',
+      interrupted: false,
+      gitOperation: {
+        pr: {
+          number: 7,
+          url: 'https://github.com/o/r/pull/7',
+          action: 'created',
+        },
+      },
+    }),
+  );
+  state.emit(
+    structuredResult('a1', 'Launched', {
+      status: 'remote_launched',
+      taskId: 't',
+      sessionUrl: 'https://claude.ai/code/session_1',
+      description: 'Port the tests',
+      prompt: '…',
+    }),
+  );
+  state.emit(
+    structuredResult('p1', 'Published', {
+      url: 'https://claude.ai/artifact/abc',
+      path: 'report.html',
+      title: 'Test report',
+    }),
+  );
+  state.emit(
+    structuredResult('s1', 'Sent', {
+      attachments: [
+        {
+          path: 'shot.png',
+          size: 2048,
+          isImage: true,
+          media_type: 'image/png',
+        },
+        { path: 'notes.md', size: 120, isImage: false },
+      ],
+      caption: 'Before and after',
+    }),
+  );
+  state.emit(success);
+  await until(() => session.snapshot.status === 'idle', 'the turn to end');
+  const parts = session.snapshot.messages[1]!.parts;
+  const data = parts.filter((p) => p.type === 'data');
+  assert.deepEqual(
+    data.map((p) => p.type === 'data' && [p.id, p.name, p.value]),
+    [
+      [
+        'b1:pr',
+        'pull-request',
+        { number: 7, url: 'https://github.com/o/r/pull/7', action: 'created' },
+      ],
+      [
+        'a1:session',
+        'session',
+        { url: 'https://claude.ai/code/session_1', title: 'Port the tests' },
+      ],
+      [
+        'p1:artifact',
+        'artifact',
+        {
+          url: 'https://claude.ai/artifact/abc',
+          path: 'report.html',
+          title: 'Test report',
+        },
+      ],
+      [
+        's1:files',
+        'attachments',
+        {
+          caption: 'Before and after',
+          files: [
+            { path: 'shot.png', size: 2048, mime: 'image/png', isImage: true },
+            { path: 'notes.md', size: 120, isImage: false },
+          ],
+        },
+      ],
+    ],
+  );
+  assert.equal(
+    parts.filter((p) => p.type === 'tool').length,
+    4,
+    'the cards stay',
+  );
+  await session.close();
+});
+
+test("an image result is an image: Read's file, and image blocks in a result", async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({
+    agent: claudeDriver({ sdk }),
+    permissions: 'auto',
+  });
+  await session.start();
+  session.send('look');
+  await until(() => state.prompts.length === 1);
+  state.emit(
+    assistant('m1', [
+      call('r1', 'Read', { file_path: 'logo.png' }),
+      call('x1', 'mcp__browser__screenshot', {}),
+    ]),
+  );
+  state.emit(
+    structuredResult('r1', [], {
+      type: 'image',
+      file: {
+        base64: 'iVBORw0K',
+        type: 'image/png',
+        originalSize: 100,
+        dimensions: { originalWidth: 64, originalHeight: 32 },
+      },
+    }),
+  );
+  state.emit(
+    structuredResult(
+      'x1',
+      [
+        { type: 'text', text: 'The page' },
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: '/9j/4AAQ',
+          },
+        },
+      ],
+      undefined,
+    ),
+  );
+  state.emit(success);
+  await until(() => session.snapshot.status === 'idle', 'the turn to end');
+  assert.deepEqual(tool(session, 'r1')!.output, [
+    {
+      type: 'image',
+      mime: 'image/png',
+      data: 'iVBORw0K',
+      width: 64,
+      height: 32,
+    },
+  ]);
+  assert.deepEqual(tool(session, 'x1')!.output, [
+    { type: 'text', text: 'The page' },
+    { type: 'image', mime: 'image/jpeg', data: '/9j/4AAQ' },
+  ]);
+  await session.close();
+});
+
+test('a suggested reply is offered after the turn, and sending drops it', async () => {
+  const { sdk, state } = fakeSdk();
+  const session = createAgentSession({ agent: claudeDriver({ sdk }) });
+  await session.start();
+  assert.equal(state.options!.promptSuggestions, true);
+  session.send('hi');
+  await until(() => state.prompts.length === 1);
+  state.emit(assistant('m1', [{ type: 'text', text: 'Hello' }]));
+  state.emit(success);
+  state.emit({
+    type: 'prompt_suggestion',
+    suggestion: 'Run the tests',
+  } as SdkMessage);
+  await until(() => session.snapshot.suggestions.length === 1, 'a suggestion');
+  assert.deepEqual(session.snapshot.suggestions, ['Run the tests']);
+  session.send('Run the tests');
+  assert.deepEqual(session.snapshot.suggestions, []);
+  await session.close();
+});

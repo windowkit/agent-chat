@@ -51,6 +51,40 @@ function partMarkdown(part: Part): string {
     case 'notice':
       return `_${part.text}_`;
     case 'data':
+      return dataMarkdown(part.name, part.value);
+  }
+}
+
+/** A data part this package's drivers write, as a line with its link. */
+function dataMarkdown(name: string, value: unknown): string {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<
+    string,
+    unknown
+  >;
+  const s = (k: string) => (typeof v[k] === 'string' ? (v[k] as string) : '');
+  const link = (label: string, url: string) =>
+    url ? `[${label}](${url})` : label;
+  switch (name) {
+    case 'pull-request':
+      return typeof v.number === 'number'
+        ? `> Pull request ${link(`#${v.number}`, s('url'))} ${s('action').replace(/-/g, ' ')}`.trimEnd()
+        : '';
+    case 'session':
+      return s('url')
+        ? `> Session started: ${link(s('title') || s('url'), s('url'))}`
+        : '';
+    case 'artifact':
+      return s('url')
+        ? `> Published ${link(s('title') || s('path') || s('url'), s('url'))}`
+        : '';
+    case 'attachments': {
+      const files = Array.isArray(v.files) ? (v.files as unknown[]) : [];
+      const paths = files
+        .map((f) => (f as { path?: unknown } | null)?.path)
+        .filter((p): p is string => typeof p === 'string');
+      return paths.length ? `> Sent ${paths.join(', ')}` : '';
+    }
+    default:
       return '';
   }
 }

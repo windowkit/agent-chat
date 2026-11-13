@@ -12,6 +12,7 @@ import { TerminalOutput } from '@react-x11/components/terminal-output';
 
 import type { ToolOutput, ToolPart } from '../core/types.js';
 import { useChat } from './context.js';
+import { ImageView } from './ImageView.js';
 import { clipLines, useLook, type ChatLook } from './look.js';
 import { MessageList } from './MessageList.js';
 
@@ -235,7 +236,15 @@ function Output({
     case 'diff':
       return <Diff output={output} />;
     case 'image':
-      return <text style={{ color: look.muted }}>[image, {output.mime}]</text>;
+      return (
+        <ImageView
+          source={{ data: output.data }}
+          {...(output.width && output.height
+            ? { width: output.width, height: output.height }
+            : {})}
+          alt={`An image, ${output.mime}`}
+        />
+      );
     case 'value':
       return (
         <Code source={clipLines(json(output.value), 80)} lang="json" wrap />

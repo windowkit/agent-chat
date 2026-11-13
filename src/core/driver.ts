@@ -74,6 +74,10 @@ export type DriverEvent =
       error?: string;
     }
   | { type: 'plan'; entries: readonly PlanEntry[]; parent?: string }
+  /** A data part: added, or its value replaced if the turn has one by `id`. */
+  | { type: 'data'; id: string; name: string; value: unknown; parent?: string }
+  /** What the user might say next, offered once the turn is over. */
+  | { type: 'suggestion'; text: string }
   /**
    * A message the harness took from someone other than the user — another
    * session, a channel — and is acting on. A turn starts with it if none is

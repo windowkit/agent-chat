@@ -52,7 +52,7 @@ renders: give the chat a new `key` to start a new session with new ones.
 | `components`  | `{ [Name]: Component \| { component, describe } }`   | Tags a reply may write on their own line. A tag is a component iff its name is a key; nothing is evaluated.  |
 | `renderTool`  | `{ [label]: (info) => ReactNode }`                   | Tool calls the app draws, by the tool's label; `'*'` for every other. A tool's own `render` comes first.     |
 | `codeActions` | `CodeAction[]`                                       | Buttons on every fenced code block. Default `[copyCode]`. Nothing runs a block unless an action here does.   |
-| `onLink`      | `(href) => void`                                     | A link in a reply was pressed. Nothing navigates by itself.                                                  |
+| `onLink`      | `(href) => void`                                     | A link in a reply, or a link card's Open, was pressed. Nothing navigates by itself; without it, no Open.     |
 | `placeholder` | `string`                                             | The composer's. Default "Ask the agent… @ for a file, / for a command".                                      |
 | `composer`    | `{ markup?, files?, commands?, pasteAsAttachment? }` | The message box. See [The composer](#the-composer).                                                          |
 | `header`      | `boolean \| (session) => ReactNode`                  | The session's line: agent, model and mode pickers, cost, Copy chat. Default `true`.                          |
@@ -255,19 +255,19 @@ session made with `useAgent`.
 options `<AgentChat>` takes; `createAgentSession(options)` makes one outside
 React (`@windowkit/agent-chat/core`). An `AgentSession`:
 
-| Member                                      | Notes                                                                                                          |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `snapshot`                                  | `{ status, messages, info, capabilities, error, paused, restored }`, one immutable object, replaced on change. |
-| `subscribe(listener)`                       | Bound, for `useSyncExternalStore(session.subscribe, …)`.                                                       |
-| `send(text \| { text, attachments, from })` | Mid-turn it steers where the harness can, and queues where it cannot. `from`: see below.                       |
-| `stop()`                                    | Stops the turn. Queued messages come back as `snapshot.restored`, which the composer takes.                    |
-| `pause()`, `resume()`                       | Holds the gate.                                                                                                |
-| `respond(toolId, choice)`                   | Answers an approval: `'allow-once'`, `'allow-session'`, `'deny'`.                                              |
-| `answer(questionId, answers \| null)`       | Answers a question the agent asked.                                                                            |
-| `setModel(id)`, `setMode(id)`               | Where `capabilities.models` / `modes`.                                                                         |
-| `notify(level, text)`                       | A line in the transcript from the app.                                                                         |
-| `toMarkdown()`                              | The transcript, as Copy chat writes it.                                                                        |
-| `start()`, `close()`                        | The harness starts at the first `send` unless started; `useAgent` closes it on unmount.                        |
+| Member                                      | Notes                                                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `snapshot`                                  | `{ status, messages, info, capabilities, error, paused, restored, suggestions }`, one immutable object. |
+| `subscribe(listener)`                       | Bound, for `useSyncExternalStore(session.subscribe, …)`.                                                |
+| `send(text \| { text, attachments, from })` | Mid-turn it steers where the harness can, and queues where it cannot. `from`: see below.                |
+| `stop()`                                    | Stops the turn. Queued messages come back as `snapshot.restored`, which the composer takes.             |
+| `pause()`, `resume()`                       | Holds the gate.                                                                                         |
+| `respond(toolId, choice)`                   | Answers an approval: `'allow-once'`, `'allow-session'`, `'deny'`.                                       |
+| `answer(questionId, answers \| null)`       | Answers a question the agent asked.                                                                     |
+| `setModel(id)`, `setMode(id)`               | Where `capabilities.models` / `modes`.                                                                  |
+| `notify(level, text)`                       | A line in the transcript from the app.                                                                  |
+| `toMarkdown()`                              | The transcript, as Copy chat writes it.                                                                 |
+| `start()`, `close()`                        | The harness starts at the first `send` unless started; `useAgent` closes it on unmount.                 |
 
 `status` is `'idle'`, `'starting'`, `'running'`, `'waiting'` (on the user),
 `'paused'`, `'unavailable'` (the harness cannot run here), `'error'` or
@@ -282,11 +282,37 @@ React (`@windowkit/agent-chat/core`). An `AgentSession`:
   → `pending` → `awaiting-approval` → `running` → `done`, `error`, `denied`,
   `cancelled`), `output` (`text`, `terminal`, `diff`, `image`, `value`), and
   `children` for a subagent's thread;
-- `plan` (Claude's `TodoWrite`), `question` (`AskUserQuestion`), `file`,
-  `notice` and `data`.
+- `plan` (Claude's task list, or `TodoWrite`), `question`
+  (`AskUserQuestion`), `file`, `notice` and `data`.
 
 Parts are plain data. Approval is a state of the tool part, drawn on its
 card, never a dialog.
+
+`suggestions` is what the harness suggests the user might send next
+(Claude's `prompt_suggestion`): set once a turn is over, emptied when the
+next message is sent.
+
+### What the chat draws
+
+Each of these is a default component in `src/view/`, in a file of its own,
+with its sizes and colours from the chat's look:
+
+| Part                                  | Drawn as                                                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan`                                | A checklist, `PLAN · 1 OF 3 DONE` over it: done muted, under way in bold (`PlanChecklist`).                                                     |
+| `data` named `pull-request`           | A card: `#7`, what happened to it and where (`PullRequestCard`).                                                                                |
+| `data` named `session`                | A card for a session started elsewhere: what it is doing and its address (`SessionCard`).                                                       |
+| `data` named `artifact`               | A card for a page the agent published: its title, file and address (`ArtifactCard`).                                                            |
+| `data` named `attachments`            | Files the agent sent: an image drawn, read from its path under `cwd`; any other file a row with its size and Open (`AttachmentCard`).           |
+| `data` of any other name              | Nothing.                                                                                                                                        |
+| a tool's `image` output               | The image, in the opened card, at its size and no taller than the look's `imageHeight` (`ImageView`).                                           |
+| an image `file` in the user's message | The picture, no taller than `thumbHeight`, in place of its token.                                                                               |
+| `suggestions`                         | Chips under the last reply, once the turn is over. Pressing one puts it in the composer to edit or send; it sends nothing (`SuggestedReplies`). |
+
+A link card's Open, and an attachment's, hands the address to `onLink` (a
+file as a `file:` URL). Without `onLink` there is no button, and the
+address is still there to read. Copy writes each card as a line with its
+link: `> Pull request [#7](https://…) created`.
 
 ### Messages from other sessions
 

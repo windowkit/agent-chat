@@ -22,6 +22,20 @@ export interface ChatLook {
   mono: string;
   /** The user's bubble: the text colour, faintly, so it shows on any ground. */
   bubble: string;
+  /** Labels, states and captions. */
+  smallSize: number;
+  /** A secondary line: a thought, a notice, a card's detail. */
+  captionSize: number;
+  /** A card's corners. */
+  radius: number;
+  /** Inside a card, from its edge. */
+  inset: number;
+  /** Between a card's pieces. */
+  gap: number;
+  /** The tallest an image in a reply or a tool's output is drawn. */
+  imageHeight: number;
+  /** The tallest an image in the user's own message is drawn. */
+  thumbHeight: number;
 }
 
 export function useLook(): ChatLook {
@@ -40,6 +54,13 @@ export function useLook(): ChatLook {
       warning: String(theme.warning ?? '#e67e22'),
       mono: String(theme.monoFamily ?? 'monospace'),
       bubble: tint(text, 0.07),
+      smallSize: 11,
+      captionSize: 12,
+      radius: 6,
+      inset: 8,
+      gap: 6,
+      imageHeight: 320,
+      thumbHeight: 160,
     };
   }, [theme]);
 }

@@ -59,10 +59,19 @@ export function Composer({
   autoFocus,
   options = {},
 }: ComposerProps): ReactElement {
-  const { session } = useChat();
+  const { session, composer } = useChat();
   const snap = useSessionSnapshot(session);
   const look = useLook();
   const editor = useRef<RichTextEditorHandle | null>(null);
+
+  // a suggested reply, put in the box to edit or send
+  useEffect(() => {
+    composer.attach((text) => {
+      editor.current?.setValue(text);
+      editor.current?.focus();
+    });
+    return () => composer.attach(null);
+  }, [composer]);
 
   const busy =
     snap.status === 'running' ||

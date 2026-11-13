@@ -96,12 +96,16 @@ they have to be: `registerElement` throws when a second copy of
 `@react-x11/components` registers `<richtext>` again, and a second
 react-x11 would hold the registrations in the wrong copy.
 
-The `@react-x11/components` floor is `^0.38.0`, the release with the hybrid
-composer (`markup`, `composerSchema`, `pasteAsAttachment`, `recall`,
-`composerParts`, sidorares/react-x11-components#1344), which
-`src/view/Composer.tsx` stands on. Keep the peer range and the devDependency
+The `react-x11` floor is `^3.0.0`: the chat hides its hover actions and
+tray controls with `visibility`, and the "+" menu closes on an app switch
+through a grabbing popup's `onDismiss`. The `@react-x11/components` floor is
+`^0.45.0`, the first release that accepts react-x11 3
+(sidorares/react-x11-components#1483); the hybrid composer `src/view/Composer.tsx`
+stands on (`markup`, `composerSchema`, `pasteAsAttachment`, `recall`,
+`composerParts`) arrived in 0.38. Keep each peer range and its devDependency
 the same: a devDependency above the peer floor means the suite passes on a
-release apps are not required to have.
+release apps are not required to have. Install without `--legacy-peer-deps`:
+CI's `npm ci` refuses a tree whose peers conflict.
 
 **The composer's value is what was typed, and a sent message is drawn as
 markdown.** `markup="markdown"` draws emphasis, fences and the rest over the

@@ -64,7 +64,8 @@
     "examples:tools": "tsx examples/tools.tsx",
     "examples:intercept": "tsx examples/intercept.tsx",
     "examples:peers": "tsx examples/peers.tsx",
-    "screenshots": "tsx scripts/screenshot.tsx"
+    "screenshots": "tsx scripts/screenshot.tsx",
+    "examples:charts": "tsx examples/charts.tsx"
   },
   "peerDependencies": {
     "@anthropic-ai/claude-agent-sdk": ">=0.3.300 <0.4.0",
@@ -79,6 +80,8 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.319",
+    "@json-render/core": "^0.22.0",
+    "@json-render/react": "^0.22.0",
     "@react-x11/components": "^0.45.0",
     "@types/node": "^26.2.0",
     "@types/pngjs": "^6.0.5",

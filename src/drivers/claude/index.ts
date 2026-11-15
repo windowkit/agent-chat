@@ -332,6 +332,11 @@ async function startClaude(
         name: APP_SERVER,
         version: '1.0.0',
         tools: sdkTools,
+        // The app's tools are few, and they are what the app made the chat
+        // for. Deferred behind tool search, the model sees a name and no
+        // schema until it thinks to look one up, and a render tool whose
+        // schema is its catalogue is no use without one.
+        alwaysLoad: true,
       }),
     };
   }

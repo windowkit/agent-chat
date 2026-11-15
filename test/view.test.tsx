@@ -42,7 +42,7 @@ import {
 } from '../src/index.js';
 import { HOVER_DELAY } from '../src/view/hover.js';
 import { AgentUnavailableError } from '../src/core/driver.js';
-import { fakeDriver, scripted } from '../src/testing/index.js';
+import { fakeDriver, scripted, type FakeStep } from '../src/testing/index.js';
 import { tool, until } from './helpers.js';
 
 afterEach(cleanup);
@@ -199,6 +199,91 @@ test("the app's fence renderer and a tool's own render draw what they are keyed 
   await userEvent.key(0xff0d); // Return
   assert.ok(await screen.findByText('Ticket ACME-1: Crash on start'));
   assert.ok(await screen.findByText('CHART {"bars":3}'));
+});
+
+const list = z.object({ title: z.string(), items: z.array(z.string()) });
+
+test('a `card: false` tool is its render, drawn from the arguments as they stream', async () => {
+  const show = defineTool({
+    description: 'Show a list',
+    parameters: list,
+    card: false,
+    title: () => 'Show a list',
+    run: () => 'shown',
+    render: ({ input, streaming }) => (
+      <text>
+        {`${streaming ? 'LIVE' : 'FINAL'} ${input?.title ?? ''}: ${(input?.items ?? []).join(',')}`}
+      </text>
+    ),
+  });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  // the arguments as Claude's stream carries them, held halfway: the call
+  // begins, its JSON arrives in pieces, then the finished block
+  const session = createAgentSession({
+    agent: fakeDriver(() =>
+      (async function* (): AsyncGenerator<FakeStep> {
+        yield { type: 'tool-start', id: 's', name: 'show', app: true };
+        yield {
+          type: 'tool-input',
+          id: 's',
+          delta: '{"title":"Fruit","items":["apple","pe',
+        };
+        await held;
+        yield { type: 'tool-input', id: 's', delta: 'ar"]}' };
+        yield {
+          type: 'call',
+          id: 's',
+          name: 'show',
+          input: { title: 'Fruit', items: ['apple', 'pear'] },
+        };
+      })(),
+    ),
+    tools: { show },
+  });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  await act(() => session.send('show me'));
+  // the finished item, not the one still being written
+  assert.ok(await screen.findByText('LIVE Fruit: apple'));
+  assert.equal(screen.queryByText('Show a list'), null, 'no card around it');
+  release();
+  await until(() => tool(session, 's')?.state === 'done', 'the call to end');
+  assert.ok(await screen.findByText('FINAL Fruit: apple,pear'));
+  assert.equal(screen.queryByText('Show a list'), null, 'still no card');
+  await session.close();
+});
+
+test('a `card: false` tool that fails is drawn as its card, so the failure shows', async () => {
+  const show = defineTool({
+    description: 'Show a list',
+    parameters: list,
+    card: false,
+    title: () => 'Show a list',
+    run: () => {
+      throw new Error('Not shown: no such item');
+    },
+    render: () => <text>DRAWN</text>,
+  });
+  const session = createAgentSession({
+    agent: fakeDriver(
+      scripted([
+        {
+          type: 'call',
+          id: 's',
+          name: 'show',
+          input: { title: 'Fruit', items: ['kiwi'] },
+          chunk: 7,
+        },
+      ]),
+    ),
+    tools: { show },
+  });
+  await renderX11(<AgentChat session={session} header={false} />, options);
+  await act(() => session.send('show me'));
+  await until(() => tool(session, 's')?.state === 'error', 'the call to fail');
+  assert.ok(await screen.findByText('Show a list'));
+  assert.ok(await screen.findByText('failed'));
+  await session.close();
 });
 
 /** A fence drawn small, then grown after mount, as a diagram compiled after

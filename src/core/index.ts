@@ -29,6 +29,7 @@ export {
   normalizeResult,
   validateInput,
   type AnyToolDef,
+  type DeepPartial,
   type InferInput,
   type JsonObjectSchema,
   type StandardSchemaLike,
@@ -38,6 +39,7 @@ export {
   type ToolRenderInfo,
   type ToolResult,
 } from './tools.js';
+export { parsePartialJson } from './partial-json.js';
 export {
   reduce,
   restore,

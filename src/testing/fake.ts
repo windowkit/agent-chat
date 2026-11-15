@@ -36,7 +36,10 @@ export type FakeStep =
     }
   /**
    * A tool call, through the gate: an app tool (one in `tools`) runs the
-   * app's function; any other ends with `result`.
+   * app's function; any other ends with `result`. With `chunk`, the
+   * arguments' JSON streams in pieces of that many characters, `delay` ms
+   * apart, as a model writes them, and the call goes to the gate once all
+   * of it has arrived.
    */
   | {
       type: 'call';
@@ -47,6 +50,8 @@ export type FakeStep =
       title?: string;
       result?: string | readonly ToolOutput[];
       error?: string;
+      chunk?: number;
+      delay?: number;
     }
   /** A question for the user; the script goes on once it is answered. */
   | { type: 'ask'; id?: string; questions: readonly Question[] };
@@ -293,16 +298,37 @@ async function call(
     (def?.title && step.input !== undefined
       ? def.title(step.input)
       : step.name);
-  host.emit({
-    type: 'tool-start',
-    id,
-    name: step.name,
-    label: step.name,
-    kind,
-    title,
-    input: step.input ?? {},
-    app,
-  });
+  if (step.chunk) {
+    // the arguments as a model writes them: the card first, then the JSON
+    host.emit({
+      type: 'tool-start',
+      id,
+      name: step.name,
+      label: step.name,
+      kind,
+      app,
+    });
+    const json = JSON.stringify(step.input ?? {});
+    const size = Math.max(1, step.chunk);
+    for (let at = 0; at < json.length; at += size) {
+      if (signal.aborted) return; // a stopped turn cancels what is open
+      host.emit({ type: 'tool-input', id, delta: json.slice(at, at + size) });
+      await sleep(step.delay ?? 0, signal);
+    }
+    if (signal.aborted) return;
+    host.emit({ type: 'tool-update', id, input: step.input ?? {}, title });
+  } else {
+    host.emit({
+      type: 'tool-start',
+      id,
+      name: step.name,
+      label: step.name,
+      kind,
+      title,
+      input: step.input ?? {},
+      app,
+    });
+  }
   const toolCall: ToolCall = {
     id,
     name: step.name,

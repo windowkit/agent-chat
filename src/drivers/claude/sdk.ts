@@ -76,6 +76,8 @@ export interface ClaudeSdk {
     name: string;
     version?: string;
     tools?: unknown[];
+    /** Never deferred behind tool search: always in the prompt. */
+    alwaysLoad?: boolean;
   }): unknown;
   /** The session's saved metadata, its title among it. */
   getSessionInfo?(

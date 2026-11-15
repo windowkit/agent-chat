@@ -58,13 +58,28 @@ export interface ToolContext {
   progress(text: string): void;
 }
 
-/** What a tool's `render` is handed: its part, and the value `run`
- *  returned, once it has. */
-export interface ToolRenderInfo<I = unknown, O = unknown> {
+/** What a tool's `render` is handed: its part, its arguments, and the value
+ *  `run` returned, once it has. */
+export type ToolRenderInfo<I = unknown, O = unknown> = {
   part: Extract<Part, { type: 'tool' }>;
-  input: I | undefined;
   output: O | undefined;
-}
+} & (
+  | {
+      /** The model is still writing the arguments. `input` is what it has
+       *  written so far (`parsePartialJson`): a string may be cut short, and
+       *  members, required ones among them, may not have arrived. */
+      streaming: true;
+      input: DeepPartial<I> | undefined;
+    }
+  | { streaming: false; input: I | undefined }
+);
+
+/** `T` with every member optional, all the way down: arguments mid-stream. */
+export type DeepPartial<T> = T extends readonly (infer U)[]
+  ? DeepPartial<U>[]
+  : T extends object
+    ? { [K in keyof T]?: DeepPartial<T[K]> }
+    : T;
 
 export interface ToolDef<I = any, O = unknown, R = unknown> {
   /** What the model reads to decide when to call it. */
@@ -79,6 +94,14 @@ export interface ToolDef<I = any, O = unknown, R = unknown> {
   kind?: ToolKind;
   /** Draws the call. The view's `defineTool` types this as a `ReactNode`. */
   render?: (info: ToolRenderInfo<I, O>) => R;
+  /**
+   * `false` draws `render` in the message in place of the tool's card. Use
+   * it for a tool whose call is the thing the user should see, such as a
+   * chart or a form, rather than a step the agent took. The card comes back
+   * while the call waits for approval, fails, is denied or is stopped, so
+   * none of those passes silently. Default `true`.
+   */
+  card?: boolean;
 }
 
 /** Any tool, whatever its arguments and result: what a map of tools holds.

@@ -133,6 +133,15 @@ directory), and it asks before changing anything there. It authenticates as Clau
 your installed `claude` instead of the SDK's copy; SDK 0.3.N ships Claude Code
 2.1.N, so keep the two in step.
 
+A second example answers with charts. The model composes them from a
+[json-render](https://json-render.dev) catalogue through one of the app's
+tools, and the chat draws the call as the UI while it is being written.
+`DEMO_AGENT=claude` works here too:
+
+```bash
+npm run examples:charts
+```
+
 ## Development
 
 ```bash

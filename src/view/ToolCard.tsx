@@ -1,15 +1,25 @@
 // One tool call: a line saying what it is and how it went, the approval row
-// while it waits for the user, and its output when opened.
+// while it waits for the user, and its output when opened. A tool with
+// `card: false` is its own `render` and nothing around it, until it needs
+// the user or does not go through.
 //
 // Approval is drawn here, on the call, not in a dialog: what is being
 // approved is right above the buttons.
 
-import { memo, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  memo,
+  useMemo,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { Button, Icon, type IconName } from 'react-x11';
 import { Code } from '@react-x11/components/code';
 import { Markdown } from '@react-x11/components/markdown';
 import { TerminalOutput } from '@react-x11/components/terminal-output';
 
+import { parsePartialJson } from '../core/partial-json.js';
+import type { ToolRenderInfo } from '../core/tools.js';
 import type { ToolOutput, ToolPart } from '../core/types.js';
 import { useChat } from './context.js';
 import { ImageView } from './ImageView.js';
@@ -31,28 +41,52 @@ export interface ToolCardProps {
   part: ToolPart;
 }
 
+/** The states a `card: false` tool is drawn as a card in anyway: each needs
+ *  the user to act, or says that what they were shown did not happen. */
+const CARD_STATES: ReadonlySet<ToolPart['state']> = new Set([
+  'awaiting-approval',
+  'error',
+  'denied',
+  'cancelled',
+]);
+
 export const ToolCard = memo(function ToolCard({
   part,
-}: ToolCardProps): ReactElement {
+}: ToolCardProps): ReactElement | null {
   const { session, renderTool } = useChat();
   const look = useLook();
   const [open, setOpen] = useState(false);
 
+  const def = session.tools.get(part.label);
   const value = part.output.find((o) => o.type === 'value');
-  const render =
-    session.tools.get(part.label)?.render ??
-    renderTool[part.label] ??
-    renderTool['*'];
-  const custom = render
-    ? (render({
-        part,
-        input: part.input,
-        output: value?.type === 'value' ? value.value : undefined,
-      }) as ReactNode)
-    : null;
+  const render = def?.render ?? renderTool[part.label] ?? renderTool['*'];
+  const streaming = part.state === 'input-streaming';
+  // the arguments so far, for a renderer that draws the call as it is
+  // written; parsed only for a tool that has one
+  const partial = useMemo(
+    () =>
+      render !== undefined && streaming
+        ? parsePartialJson(part.inputText)
+        : undefined,
+    [render, streaming, part.inputText],
+  );
+  const info: ToolRenderInfo = {
+    part,
+    output: value?.type === 'value' ? value.value : undefined,
+    ...(streaming
+      ? { streaming: true, input: partial }
+      : { streaming: false, input: part.input }),
+  };
+  const custom = render ? (render(info) as ReactNode) : null;
   const waiting = part.state === 'awaiting-approval';
   const expanded = open || waiting;
   const [glyph, colour] = glyphOf(part.state, look);
+
+  if (def?.card === false && !CARD_STATES.has(part.state)) {
+    return custom ? (
+      <box style={{ flexDirection: 'column' }}>{custom}</box>
+    ) : null;
+  }
 
   return (
     <box

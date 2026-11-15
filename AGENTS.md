@@ -29,8 +29,10 @@ anything.
 - `test/` — `node --test` through `tsx`. `*.test.ts` for the core and the
   drivers, `*.test.tsx` for the view, rendered by react-x11's in-process X
   server.
-- `examples/` — runnable apps. `demo.tsx` needs nothing installed; the
-  others need the Claude Agent SDK and a key.
+- `examples/` — runnable apps. `demo.tsx` and `charts.tsx` need nothing
+  installed; the others need the Claude Agent SDK and a key. `charts.tsx`
+  is generative UI: a json-render catalogue as a `card: false` tool, with
+  json-render a devDependency only it uses.
 - `scripts/` — `check-package.ts` (what would be published) and
   `screenshot.tsx` (the README's images).
 - `docs/` — the reference, the drivers page and the design record.
@@ -128,6 +130,7 @@ npm run check:package # after a build
 npm run format:check
 npm run screenshots   # docs/img/chat-{light,dark}.png
 npm run examples:demo # DEMO_AGENT=claude for real Claude Code; see its header
+npm run examples:charts # the same switch; the model composes charts
 ```
 
 ## Tests

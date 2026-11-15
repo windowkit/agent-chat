@@ -244,12 +244,22 @@ const openTicket = defineTool({
 | `ask`         | Ask the user before every call. Default false: the app wrote it.                                                                                                                                            |
 | `title`       | The card's one line. Default: the tool's name.                                                                                                                                                              |
 | `kind`        | `'read'`, `'edit'`, `'execute'`, … — what the policy and the card go by. Default `'other'`.                                                                                                                 |
-| `render`      | Draws the call: `{ part, input, output }`, `output` being what `run` returned.                                                                                                                              |
+| `render`      | Draws the call: `{ part, input, output, streaming }`, `output` being what `run` returned. While `streaming`, `input` is the arguments the model has written so far (`parsePartialJson`).                    |
+| `card`        | `false` draws `render` in the message in place of the card: for a call that is what the user should see, a chart or a form. The card comes back to ask, or to say it failed, was denied or was stopped.     |
 
 How a function reaches the agent is the driver's business. On Claude it runs
 in this process, in the Agent SDK's in-process MCP server: nothing is spawned
-and nothing listens. The model sees it as `mcp__app__<name>`; the chat shows
+and nothing listens. The model sees it as `mcp__app__<name>`, with its schema
+always in the prompt rather than deferred behind tool search; the chat shows
 its name.
+
+**Drawing a UI the model composes.** A tool whose parameters are a component
+catalogue, with `card: false` and a `render` that draws its input, lets the
+model answer with a UI: the arguments are validated before anything runs, the
+spec is plain data in the transcript, and it is drawn while it is written.
+`examples/charts.tsx` does this with a [json-render](https://json-render.dev)
+catalogue of metrics and charts; `npm run examples:charts` runs it without a
+key.
 
 **Replacing a built-in.** `coreTools={{ shell: myShell }}` removes Claude's
 `Bash` and routes it to `myShell` through the SDK's `toolAliases`, so a model

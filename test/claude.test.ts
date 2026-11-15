@@ -81,7 +81,12 @@ function fakeSdk() {
       state.tools.push(t);
       return t;
     },
-    createSdkMcpServer: (o) => ({ type: 'sdk', name: o.name, tools: o.tools }),
+    createSdkMcpServer: (o) => ({
+      type: 'sdk',
+      name: o.name,
+      tools: o.tools,
+      alwaysLoad: o.alwaysLoad,
+    }),
     getSessionInfo: async () => state.saved,
     query({ prompt, options }) {
       state.options = options ?? {};
@@ -190,7 +195,13 @@ test('the options say what the session asked for', async (t) => {
     'thinking as text to show, which the SDK omits by default on Opus 4.7+',
   );
   assert.equal(o.maxTurns, 3, 'driverOptions are passed through, last');
-  assert.ok((o.mcpServers as Record<string, unknown>).app);
+  const app = (o.mcpServers as Record<string, { alwaysLoad?: boolean }>).app;
+  assert.ok(app);
+  assert.equal(
+    app.alwaysLoad,
+    true,
+    "the app's tools are in the prompt, not deferred behind tool search",
+  );
   assert.equal(
     (o.env as Record<string, string>).CLAUDE_AGENT_SDK_CLIENT_APP,
     '@windowkit/agent-chat',

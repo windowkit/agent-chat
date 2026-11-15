@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/windowkit/agent-chat/compare/v0.5.0...v0.6.0) (2026-11-15)
+
+
+### Features
+
+* a tool drawn as its own UI while the model writes it, and a charts example ([#15](https://github.com/windowkit/agent-chat/issues/15)) ([ee0b164](https://github.com/windowkit/agent-chat/commit/ee0b1643e0fa05babe5c507d4be6a0f0fb254627))
+
 ## [0.5.0](https://github.com/windowkit/agent-chat/compare/v0.4.0...v0.5.0) (2026-11-13)
 
 

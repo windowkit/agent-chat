@@ -35,6 +35,8 @@ export interface ChatContextValue {
   fontSize: number | undefined;
   /** The message box, for a part that puts text in it without sending. */
   composer: ComposerChannel;
+  /** A suggested-reply chip was pressed: the `suggestions` prop, resolved. */
+  suggest: (text: string) => void;
 }
 
 /** How a part reaches the composer: it attaches while mounted. */

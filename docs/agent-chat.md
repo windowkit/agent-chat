@@ -46,23 +46,24 @@ renders: give the chat a new `key` to start a new session with new ones.
 
 ## The view's props
 
-| Prop            | Type                                                          | Notes                                                                                                                              |
-| --------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `session`       | `AgentSession`                                                | A session from `useAgent`. With it, none of the session's props above are allowed: they are the session's.                         |
-| `fences`        | `{ [lang]: render \| { render, describe } }`                  | Fenced blocks the app draws, by language. See [Rendering](#rendering).                                                             |
-| `components`    | `{ [Name]: Component \| { component, describe } }`            | Tags a reply may write on their own line. A tag is a component iff its name is a key; nothing is evaluated.                        |
-| `renderTool`    | `{ [label]: (info) => ReactNode }`                            | Tool calls the app draws, by the tool's label; `'*'` for every other. A tool's own `render` comes first.                           |
-| `codeActions`   | `CodeAction[]`                                                | Buttons on every fenced code block. Default `[copyCode]`. Nothing runs a block unless an action here does.                         |
-| `onLink`        | `(href) => void`                                              | A link in a reply, or a link card's Open, was pressed. Nothing navigates by itself; without it, no Open.                           |
-| `placeholder`   | `string`                                                      | The composer's. Default "Ask the agent… @ for a file, / for a command".                                                            |
-| `composer`      | `{ markup?, files?, commands?, pasteAsAttachment?, attach? }` | The message box. See [The composer](#the-composer).                                                                                |
-| `header`        | `boolean \| (session) => ReactNode`                           | The session's line: its name, agent, model and mode pickers, cost, Copy chat. Default `true`.                                      |
-| `onTitleChange` | `(title) => void`                                             | The session's name changed: the app's `title`, a `rename`, or the harness naming it. See [The session's name](#the-sessions-name). |
-| `empty`         | `ReactNode`                                                   | Shown while the transcript is empty.                                                                                               |
-| `fallback`      | `ReactNode \| (snapshot) => ReactNode`                        | Shown instead of the chat when the harness cannot run here. Default: a line saying why, above an empty chat.                       |
-| `fontSize`      | `number`                                                      | Base text size. Default: the theme's.                                                                                              |
-| `autoFocus`     | `boolean`                                                     | Focus the composer on mount. Default `true`.                                                                                       |
-| `style`         | `StyleProp`                                                   | The root box. It fills what it is put in by default (`flexGrow: 1`).                                                               |
+| Prop            | Type                                                          | Notes                                                                                                                                                                  |
+| --------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session`       | `AgentSession`                                                | A session from `useAgent`. With it, none of the session's props above are allowed: they are the session's.                                                             |
+| `fences`        | `{ [lang]: render \| { render, describe } }`                  | Fenced blocks the app draws, by language. See [Rendering](#rendering).                                                                                                 |
+| `components`    | `{ [Name]: Component \| { component, describe } }`            | Tags a reply may write on their own line. A tag is a component iff its name is a key; nothing is evaluated.                                                            |
+| `renderTool`    | `{ [label]: (info) => ReactNode }`                            | Tool calls the app draws, by the tool's label; `'*'` for every other. A tool's own `render` comes first.                                                               |
+| `codeActions`   | `CodeAction[]`                                                | Buttons on every fenced code block. Default `[copyCode]`. Nothing runs a block unless an action here does.                                                             |
+| `onLink`        | `(href) => void`                                              | A link in a reply, or a link card's Open, was pressed. Nothing navigates by itself; without it, no Open.                                                               |
+| `suggestions`   | `'fill' \| 'send' \| (text, session) => void`                 | What pressing a suggested-reply chip does. `'fill'` (default) puts it in the composer to edit or send; `'send'` sends it at once; a function does the app's own thing. |
+| `placeholder`   | `string`                                                      | The composer's. Default "Ask the agent… @ for a file, / for a command".                                                                                                |
+| `composer`      | `{ markup?, files?, commands?, pasteAsAttachment?, attach? }` | The message box. See [The composer](#the-composer).                                                                                                                    |
+| `header`        | `boolean \| (session) => ReactNode`                           | The session's line: its name, agent, model and mode pickers, cost, Copy chat. Default `true`.                                                                          |
+| `onTitleChange` | `(title) => void`                                             | The session's name changed: the app's `title`, a `rename`, or the harness naming it. See [The session's name](#the-sessions-name).                                     |
+| `empty`         | `ReactNode`                                                   | Shown while the transcript is empty.                                                                                                                                   |
+| `fallback`      | `ReactNode \| (snapshot) => ReactNode`                        | Shown instead of the chat when the harness cannot run here. Default: a line saying why, above an empty chat.                                                           |
+| `fontSize`      | `number`                                                      | Base text size. Default: the theme's.                                                                                                                                  |
+| `autoFocus`     | `boolean`                                                     | Focus the composer on mount. Default `true`.                                                                                                                           |
+| `style`         | `StyleProp`                                                   | The root box. It fills what it is put in by default (`flexGrow: 1`).                                                                                                   |
 
 ## The ladder
 
@@ -390,17 +391,17 @@ next message is sent.
 Each of these is a default component in `src/view/`, in a file of its own,
 with its sizes and colours from the chat's look:
 
-| Part                                  | Drawn as                                                                                                                                        |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `plan`                                | A checklist, `PLAN · 1 OF 3 DONE` over it: done muted, under way in bold (`PlanChecklist`).                                                     |
-| `data` named `pull-request`           | A card: `#7`, what happened to it and where (`PullRequestCard`).                                                                                |
-| `data` named `session`                | A card for a session started elsewhere: what it is doing and its address (`SessionCard`).                                                       |
-| `data` named `artifact`               | A card for a page the agent published: its title, file and address (`ArtifactCard`).                                                            |
-| `data` named `attachments`            | Files the agent sent: an image drawn, read from its path under `cwd`; any other file a row with its size and Open (`AttachmentCard`).           |
-| `data` of any other name              | Nothing.                                                                                                                                        |
-| a tool's `image` output               | The image, in the opened card, at its size and no taller than the look's `imageHeight` (`ImageView`).                                           |
-| an image `file` in the user's message | The picture, no taller than `thumbHeight`, in place of its token.                                                                               |
-| `suggestions`                         | Chips under the last reply, once the turn is over. Pressing one puts it in the composer to edit or send; it sends nothing (`SuggestedReplies`). |
+| Part                                  | Drawn as                                                                                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan`                                | A checklist, `PLAN · 1 OF 3 DONE` over it: done muted, under way in bold (`PlanChecklist`).                                                                                               |
+| `data` named `pull-request`           | A card: `#7`, what happened to it and where (`PullRequestCard`).                                                                                                                          |
+| `data` named `session`                | A card for a session started elsewhere: what it is doing and its address (`SessionCard`).                                                                                                 |
+| `data` named `artifact`               | A card for a page the agent published: its title, file and address (`ArtifactCard`).                                                                                                      |
+| `data` named `attachments`            | Files the agent sent: an image drawn, read from its path under `cwd`; any other file a row with its size and Open (`AttachmentCard`).                                                     |
+| `data` of any other name              | Nothing.                                                                                                                                                                                  |
+| a tool's `image` output               | The image, in the opened card, at its size and no taller than the look's `imageHeight` (`ImageView`).                                                                                     |
+| an image `file` in the user's message | The picture, no taller than `thumbHeight`, in place of its token.                                                                                                                         |
+| `suggestions`                         | Chips under the last reply, once the turn is over. Pressing one puts it in the composer to edit or send; it sends nothing unless the `suggestions` prop is `'send'` (`SuggestedReplies`). |
 
 A link card's Open, and an attachment's, hands the address to `onLink` (a
 file as a `file:` URL). Without `onLink` there is no button, and the

@@ -206,7 +206,7 @@ test('files the agent sent are an attachment card: images drawn, files opened th
   await session.close();
 });
 
-test('a suggested reply is a chip that fills the composer and sends nothing', async () => {
+test('a suggested reply is a chip that, by default, fills the composer and sends nothing', async () => {
   const { driver, session } = await run([{ type: 'say', text: 'Done.' }]);
   await act(() =>
     driver.host!.emit({ type: 'suggestion', text: 'Now run the tests' }),
@@ -230,5 +230,60 @@ test('a suggested reply is a chip that fills the composer and sends nothing', as
       .length,
     0,
   );
+  await session.close();
+});
+
+test('with suggestions="send", pressing a chip sends it as the user', async () => {
+  const { driver, session } = await run([{ type: 'say', text: 'Done.' }], {
+    suggestions: 'send',
+  });
+  await act(() =>
+    driver.host!.emit({ type: 'suggestion', text: 'Now run the tests' }),
+  );
+  await userEvent.click(
+    await screen.findByRole('button', {
+      name: 'Now run the tests',
+      exact: true,
+    }),
+  );
+  await until(() => driver.sent.length === 2, 'the chip to be sent');
+  assert.equal(driver.sent[1]!.text, 'Now run the tests');
+  // a user message in the transcript, and a turn under way for it
+  const last = session.snapshot.messages
+    .filter((m) => m.role === 'user')
+    .at(-1);
+  assert.deepEqual(
+    last?.parts.map((p) => (p.type === 'text' ? p.text : p.type)),
+    ['Now run the tests'],
+  );
+  assert.deepEqual(session.snapshot.suggestions, []);
+  await until(() => session.snapshot.status === 'idle', 'the second turn');
+  assert.equal(
+    session.snapshot.messages.filter((m) => m.role === 'assistant').length,
+    2,
+  );
+  await session.close();
+});
+
+test('a function in suggestions is handed the text, and nothing is sent', async () => {
+  const pressed: string[] = [];
+  const { driver, session } = await run([{ type: 'say', text: 'Done.' }], {
+    suggestions: (text: string, s: unknown) => {
+      assert.equal(s, session);
+      pressed.push(text);
+    },
+  });
+  await act(() =>
+    driver.host!.emit({ type: 'suggestion', text: 'Now run the tests' }),
+  );
+  await userEvent.click(
+    await screen.findByRole('button', {
+      name: 'Now run the tests',
+      exact: true,
+    }),
+  );
+  await act();
+  assert.deepEqual(pressed, ['Now run the tests']);
+  assert.equal(driver.sent.length, 1);
   await session.close();
 });

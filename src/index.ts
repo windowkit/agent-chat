@@ -32,6 +32,7 @@ export {
   type ComponentEntry,
   type FenceEntry,
   type FenceInfo,
+  type SuggestionAction,
   type ToolRenderer,
 } from './view/types.js';
 export { splitFences, type Segment } from './view/fences.js';

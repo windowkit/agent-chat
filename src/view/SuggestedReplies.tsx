@@ -1,6 +1,7 @@
 // What the harness suggests the user might say next, as chips under the
-// last reply. Pressing one puts it in the composer to edit or send; it never
-// sends by itself.
+// last reply. By default pressing one puts it in the composer to edit or
+// send; `<AgentChat suggestions="send">` sends it, and a function there is
+// the app's own action.
 
 import type { ReactElement } from 'react';
 import { Button } from 'react-x11';
@@ -13,7 +14,7 @@ export function SuggestedReplies({
 }: {
   suggestions: readonly string[];
 }): ReactElement {
-  const { composer } = useChat();
+  const { suggest } = useChat();
   const look = useLook();
   return (
     <box
@@ -26,7 +27,7 @@ export function SuggestedReplies({
           size="small"
           variant="outline"
           label={s}
-          onPress={() => composer.fill(s)}
+          onPress={() => suggest(s)}
         />
       ))}
     </box>

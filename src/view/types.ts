@@ -60,6 +60,11 @@ export const copyCode: CodeAction = Object.freeze({
   run: (fence: FenceInfo, ctx: CodeActionContext) => ctx.copy(fence.text),
 });
 
+/** What pressing a suggested-reply chip does: `'fill'` the composer,
+ *  `'send'` the text as the user's message, or the app's own function. */
+export type SuggestionAction =
+  'fill' | 'send' | ((text: string, session: AgentSession) => void);
+
 /** Draws a tool call: the part, its parsed input, and what `run` returned. */
 export type ToolRenderer = (info: ToolRenderInfo) => ReactNode;
 

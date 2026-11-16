@@ -30,6 +30,7 @@ is.
 | `empty`                    | What the transcript shows before the first message.                                                                                                                   |
 | `fallback`                 | Drawn instead of the chat when the agent is unavailable. The error banner drawn above a running chat is fixed.                                                        |
 | `composer`                 | `markup`, `files` (the `@` list), `commands` (the `/` list), `pasteAsAttachment`, `attach` (the "+" menu's sources). No suggesters of the app's own, no key bindings. |
+| `suggestions`              | What a suggested-reply chip does when pressed: `'fill'` the composer (default), `'send'` it, or a function of the text and the session. The chips' look is fixed.     |
 | `placeholder`, `autoFocus` | As named.                                                                                                                                                             |
 | `fontSize`                 | Reaches the markdown prose **only**: code blocks, tool cards, the header, the composer and every label keep their own sizes.                                          |
 | `style`                    | The root box.                                                                                                                                                         |
@@ -106,7 +107,8 @@ Parts of the chat no seam reaches:
 17. **`data` parts**: the four the Claude driver writes are drawn as cards
     (`PullRequestCard`, `SessionCard`, `ArtifactCard`, `AttachmentCard`);
     any other as nothing, and no seam to draw them. The suggested-reply
-    chips (`SuggestedReplies`) have none either.
+    chips (`SuggestedReplies`) have none either: `suggestions` says what a
+    press does, not how a chip looks.
 18. **Copy and export formats** (`messageMarkdown`, `transcriptMarkdown`): a
     tool call exports as one line.
 

@@ -40,6 +40,7 @@ import {
   type CodeAction,
   type ComponentEntry,
   type FenceEntry,
+  type SuggestionAction,
   type ToolRenderer,
 } from './types.js';
 import { useAgent, useSessionSnapshot } from './use-agent.js';
@@ -59,6 +60,11 @@ export interface AgentChatViewProps {
   codeActions?: readonly CodeAction[];
   /** A link in a reply was pressed. Nothing navigates by itself. */
   onLink?: (href: string) => void;
+  /** What pressing a suggested-reply chip does. `'fill'` (default) puts its
+   *  text in the composer to edit or send; `'send'` sends it as the user's
+   *  message at once; a function is handed the text and does the app's own
+   *  thing. */
+  suggestions?: SuggestionAction;
   placeholder?: string;
   /** How the message box behaves: what it draws as markdown while typing,
    *  the `@` file list, the `/` command list, pastes as attachments. */
@@ -140,6 +146,16 @@ function ChatView({
   const { fences, components, renderTool, codeActions, onLink, fontSize } =
     view;
   const [composer] = useState(composerChannel);
+  // the latest action, read when a chip is pressed: an inline arrow is the
+  // usual function, and a new arrow should not re-render every message
+  const onSuggestion = useRef(view.suggestions);
+  onSuggestion.current = view.suggestions;
+  const [suggest] = useState(() => (text: string): void => {
+    const action = onSuggestion.current ?? 'fill';
+    if (action === 'fill') composer.fill(text);
+    else if (action === 'send') session.send(text);
+    else action(text, session);
+  });
 
   // the latest callback, called once per name: an inline arrow is the
   // usual one, and a new arrow is not a new name
@@ -159,6 +175,7 @@ function ChatView({
       onLink,
       fontSize,
       composer,
+      suggest,
     }),
     [
       session,
@@ -169,6 +186,7 @@ function ChatView({
       onLink,
       fontSize,
       composer,
+      suggest,
     ],
   );
 

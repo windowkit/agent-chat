@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/windowkit/agent-chat/compare/v0.6.0...v0.7.0) (2026-11-16)
+
+
+### Features
+
+* a suggestions prop, so a suggested-reply chip can send on press ([#17](https://github.com/windowkit/agent-chat/issues/17)) ([dea408b](https://github.com/windowkit/agent-chat/commit/dea408bb2fd6d76ba6b8cee4cdd6fdd18a9d5c76))
+
 ## [0.6.0](https://github.com/windowkit/agent-chat/compare/v0.5.0...v0.6.0) (2026-11-15)
 
 
